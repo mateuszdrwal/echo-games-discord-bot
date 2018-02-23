@@ -20,7 +20,7 @@ planS  = ss.worksheet_by_title("Planned")
 stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
-commentpattern = re.compile("(\d{18}) *?([\s\S]*)")
+commentpattern = re.compile("(\d{18}).*?([^\s:-][\s\S]*)")
 
 async def perm(reaction):
     global guild
