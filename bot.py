@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import discord, asyncio, pygsheets, datetime, re, time
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -103,6 +104,7 @@ async def loop():
                 
                 results = re.findall(pattern, message.content)
                 comment = re.findall(commentpattern, message.content)
+                if comment != [] and message.author not in guild.members: continue
                 if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author.name == "mateuszdrwal", message.author.roles) != None:
                     comment = comment[0]
                     id = int(comment[0])
@@ -121,16 +123,12 @@ async def loop():
                 downvotes = 0
                 status = 0 #0: open, 1: in-progress, 2: rejected, 3: resolved
                 cont = False
+                voted = []
                 for reaction in message.reactions:
                     if reaction.emoji == "\u26d4":
                         if await perm(reaction):
                             cont = True
                             break
-                    elif reaction.emoji == "\U0001f44d":
-                        upvotes = reaction.count
-                        async for user in reaction.users():
-                            if reaction.message.author == user:
-                                upvotes -= 1
                     elif reaction.emoji == "\U0001f44e":
                         downvotes = reaction.count
 
@@ -143,6 +141,12 @@ async def loop():
                     elif reaction.emoji == "\u2705":
                         if await perm(reaction) and status < 3:
                             status = 3
+                    elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
+                        async for user in reaction.users():
+                            if user in voted or reaction.message.author == user:
+                                continue
+                            voted.append(user)
+                            upvotes += 1
                             
                 if cont:
                     continue
@@ -181,6 +185,7 @@ async def loop():
             await asyncio.sleep(600)
 
         except Exception as error:
+            raise error
             print(error)
             gs = pygsheets.authorize(service_file="key.json")
 
