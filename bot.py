@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io
+import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3
 from oauth2client.service_account import ServiceAccountCredentials
 from PIL import Image, ImageFont, ImageDraw
 from subprocess import Popen, PIPE
 
 client = discord.Client()
 
-reqVals = []
-featVals = []
+vals = []
 rejVals = []
 doneVals = []
 planVals = []
 
 gs = pygsheets.authorize(service_file="key.json")
 
-ss = gs.open("Echo Arena Feature Requests")
+ss = gs.open("Echo Arena Feature Requests testing")
 allS = ss.worksheet_by_title("All")
 openS  = ss.worksheet_by_title("Open")
 rejS  = ss.worksheet_by_title("Rejected")
@@ -23,7 +22,7 @@ planS  = ss.worksheet_by_title("Planned")
 stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
-commentpattern = re.compile("(\d{18}).*?([^\s:-][\s\S]*)")
+commentpattern = re.compile("(\d{18})[^>].*?([^\s:-][\s\S]*)")
 
 async def perm(reaction):
     global guild
@@ -36,38 +35,41 @@ async def perm(reaction):
             return False
 
 def updateSheet():
-    global reqVals, featVals, rejVals, doneVals, planVals
+    global vals, rejVals, doneVals, planVals, c
     
+    for sheet, criteria in [(openS, " WHERE status = 0"),(planS, " WHERE status = 1"),(rejS, " WHERE status = 2"),(doneS, " WHERE status = 3"),(allS, "")]:
 
-    for sheet, entries in [(openS, featVals+reqVals),(doneS, doneVals),(planS,planVals),(allS, reqVals+featVals+rejVals+doneVals+planVals)]:
-        #if len(entries) == 0:
-        #continue
+        c.execute("SELECT * FROM requests"+criteria)
+        entries = c.fetchall()
         
         newVals = []
         
         for entry in entries:
-            if entry["status"] == 0:
+            if entry[8] == 0:
                 status = "Open"
-            if entry["status"] == 1:
+            if entry[8] == 1:
                 status = "Planned"
-            if entry["status"] == 2:
+            if entry[8] == 2:
                 status = "Rejected"
-            if entry["status"] == 3:
+            if entry[8] == 3:
                 status = "Implemented"
 
-            newVals.append([entry["time"],
-                            entry["author"],
-                            entry["type"],
-                            entry["title"],
-                            entry["category"],
-                            entry["description"],
-                            entry["points"],
-                            entry["upvotes"],
-                            entry["downvotes"],
+            c.execute("SELECT * FROM responses WHERE mid = :mid", {"mid": entry[9]})
+            responses = c.fetchall()
+
+            newVals.append([datetime.datetime.fromtimestamp(entry[0]).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            entry[1],
+                            entry[2],
+                            entry[3],
+                            entry[4],
+                            entry[5],
+                            entry[6]-entry[7],
+                            entry[6],
+                            entry[7],
                             status,
-                            "\n\n".join(entry["devresp"]),
-                            entry["mid"],
-                            entry["aid"]
+                            "\n\n".join(resp[2] for resp in responses),
+                            entry[9],
+                            entry[10]
                             ])
         
         newVals.sort(key=lambda r: int(r[6]))
@@ -87,14 +89,13 @@ def updateSheet():
     cells[-1].value = "Last updated at: %s"%datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     stats.update_cells(cell_list=cells)
     
-    reqVals = []
-    featVals = []
+    vals = []
     rejVals = []
     doneVals = []
     planVals = []
 
 async def loop():
-    global requestChannel, reqVals, featVals, rejVals, doneVals, planVals, guild
+    global requestChannel, vals, rejVals, doneVals, planVals, guild, conn, c
     await client.wait_until_ready()
     await asyncio.sleep(1)
     while True:
@@ -104,36 +105,60 @@ async def loop():
             
             async for message in requestChannel.history(limit=None, reverse=True):
                 
-                results = re.findall(pattern, message.content)
+                results = re.findall(pattern, message.clean_content)
                 comment = re.findall(commentpattern, message.content)
+                
                 if comment != [] and message.author not in guild.members: continue
                 if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author.name == "mateuszdrwal", message.author.roles) != None:
                     comment = comment[0]
                     id = int(comment[0])
-                    for array in [reqVals, featVals, rejVals, doneVals]:
-                        msg = discord.utils.find(lambda r: r["mid"] == id, array)
-                        if msg != None:
-                            msg["devresp"].append(comment[1])
+
+                    c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": id})
+
+                    if c.fetchall() != []:
+                        c.execute("SELECT * FROM responses WHERE rmid = :rmid", {"rmid":message.id})
+
+                        if c.fetchall() == []:
+                            c.execute("INSERT INTO responses VALUES (:mid, :rmid, :resp)",{"mid": id, "rmid": message.id, "resp": comment[1]})
+                            conn.commit()
                             await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
-                            break
+                        else:
+                            c.execute("UPDATE responses SET response = :resp WHERE mid = :mid AND rmid = :rmid",{"mid": id, "rmid": message.id, "resp": comment[1]})
+                        
+##                    for array in [vals, rejVals, doneVals]:
+##                        msg = discord.utils.find(lambda r: r["mid"] == id, array)
+##                        if msg != None:
+##                            msg["devresp"].append(comment[1])
+##                            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+##                            break
                     continue
                     
                 if results == [] or message.id == 403337281068466197:
                     continue
 
+
+
                 upvotes = 0
                 downvotes = 0
                 status = 0 #0: open, 1: in-progress, 2: rejected, 3: resolved
                 cont = False
-                voted = []
+                #voted = []
+
+                c.execute("SELECT * FROM votes WHERE mid = :mid", {"mid": message.id})
+                fetched = c.fetchall()
+                uped = [vote[1] for vote in fetched if vote[2] and vote[4]]
+                downed = [vote[1] for vote in fetched if vote[3] and vote[5]]
+                
                 for reaction in message.reactions:
                     if reaction.emoji == "\u26d4":
                         if await perm(reaction):
+                            c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": message.id})
+                            c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": message.id})
+                            c.execute("DELETE FROM responses WHERE mid = :mid", {"mid": message.id})
+                            conn.commit()
                             cont = True
                             break
-                    elif reaction.emoji == "\U0001f44e":
-                        downvotes = reaction.count
-
+                        
                     elif reaction.emoji == "\U0001f5d3":
                         if await perm(reaction) and status < 1:
                             status = 1
@@ -143,51 +168,150 @@ async def loop():
                     elif reaction.emoji == "\u2705":
                         if await perm(reaction) and status < 3:
                             status = 3
+
+                    elif reaction.emoji == "\U0001f44e":
+                        async for user in reaction.users():
+                            if reaction.message.author == user:
+                                continue
+
+                            c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                            fetched = c.fetchall()
+                            if fetched != []:
+                                if fetched[0][3] != 1 or fetched[0][5] != 1:
+                                    c.execute("UPDATE votes SET down = 1 AND downDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                            else:
+                                c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, 1, 0, 1)", {"mid": message.id, "uid": user.id})
+
+                            conn.commit()
+                            
+                            try:
+                                downed.remove(user.id)
+                            except ValueError:
+                                pass
+                        #downvotes = reaction.count
+                        
                     elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
                         async for user in reaction.users():
-                            if user in voted or reaction.message.author == user:
+                            if reaction.message.author == user:
                                 continue
-                            voted.append(user)
-                            upvotes += 1
+
+                            c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                            fetched = c.fetchall()
+                            if fetched != []:
+                                if fetched[0][2] != 1 or fetched[0][4] != 1:
+                                    c.execute("UPDATE votes SET up = 1 AND upDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                            else:
+                                c.execute("INSERT INTO votes VALUES (:mid, :uid, 1, 0, 1, 0)", {"mid": message.id, "uid": user.id})
+
+                            conn.commit()
+                            
+                            try:
+                                uped.remove(user.id)
+                            except ValueError:
+                                pass
+    
+                            #voted.append(user)
+                            #upvotes += 1
                             
                 if cont:
                     continue
 
-                entry = {"time": message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                for user in uped:
+                    c.execute("UPDATE votes SET up = 0 AND upDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
+                for user in downed:
+                    c.execute("UPDATE votes SET down = 0 AND downDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
+                conn.commit()
+
+                c.execute("SELECT count(*) FROM votes WHERE up = 1 AND mid = :mid", {"mid": message.id})
+                upvotes = c.fetchall()[0][0]
+                c.execute("SELECT count(*) FROM votes WHERE down = 1 AND mid = :mid", {"mid": message.id})
+                downvotes = c.fetchall()[0][0]
+
+                c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
+                fetched = c.fetchall()
+                if fetched != []:
+                    c.execute("""UPDATE requests SET
+                    author = :author,
+                    sugType = :sugType,
+                    title = :title,
+                    category = :category,
+                    description = :description,
+                    up = :up,
+                    down = :down,
+                    status = :status
+                    WHERE mid = :mid""", {
                         "author": "%s#%s"%(message.author.name, message.author.discriminator),
-                        "type": results[0][0],
+                        "sugType": results[0][0],
                         "title": results[0][1],
                         "category": results[0][2],
                         "description": results[0][3],
-                        "points": str(upvotes-downvotes),
-                        "upvotes": str(upvotes),
-                        "downvotes": str(downvotes),
+                        "up": upvotes,
+                        "down": downvotes,
                         "status": status,
-                        "devresp": [],
+                        "mid": message.id
+                        })
+                else:
+                    c.execute("""INSERT INTO requests VALUES (
+                    :time,
+                    :author,
+                    :sugType,
+                    :title,
+                    :category,
+                    :description,
+                    :up,
+                    :down,
+                    :status,
+                    :mid,
+                    :uid
+                    )""", {
+                        "time": message.created_at.timestamp(),
+                        "author": "%s#%s"%(message.author.name, message.author.discriminator),
+                        "sugType": results[0][0],
+                        "title": results[0][1],
+                        "category": results[0][2],
+                        "description": results[0][3],
+                        "up": upvotes,
+                        "down": downvotes,
+                        "status": status,
                         "mid": message.id,
-                        "aid": message.author.id
-                        }
+                        "uid": message.author.id
+                        })
 
-                sugType = results[0][0].lower()
+                conn.commit()
+                
+##                entry = {"time": message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+##                        "author": "%s#%s"%(message.author.name, message.author.discriminator),
+##                        "type": results[0][0],
+##                        "title": results[0][1],
+##                        "category": results[0][2],
+##                        "description": results[0][3],
+##                        "points": str(upvotes-downvotes),
+##                        "upvotes": str(upvotes),
+##                        "downvotes": str(downvotes),
+##                        "status": status,
+##                        "devresp": [],
+##                        "mid": message.id,
+##                        "aid": message.author.id
+##                        }
 
-                if status == 1:
-                    planVals.append(entry)
-                elif status == 2:
-                    rejVals.append(entry)
-                elif status == 3:
-                    doneVals.append(entry)
-                elif "feature" in sugType and ("request" in sugType or "new" in sugType):
-                    reqVals.append(entry)
-                elif "improv" in sugType and "existing" in sugType and "feature" in sugType:
-                    featVals.append(entry)
-
+##                sugType = results[0][0].lower()
+##
+##                if status == 1:
+##                    planVals.append(entry)
+##                elif status == 2:
+##                    rejVals.append(entry)
+##                elif status == 3:
+##                    doneVals.append(entry)
+##                else:
+##                    vals.append(entry)
+            
             updateSheet()
             end = time.time()
             print("updated %ss"%round(end-start,3))
             await asyncio.sleep(600)
 
         except Exception as error:
-            print(error)
+            raise error
             gs = pygsheets.authorize(service_file="key.json")
 
             ss = gs.open("Echo Arena Feature Requests")
@@ -199,7 +323,6 @@ async def loop():
             stats = ss.worksheet_by_title("Stats")
 
 async def cupTask(cupChannel, textInCup, link):
-    
     await client.wait_until_ready()
     await asyncio.sleep(5)
 
@@ -229,22 +352,27 @@ async def cupTask(cupChannel, textInCup, link):
             await asyncio.sleep(waitTime)
 
             raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
-            teamList = [[team["seed"], team["name"]] for team in raw if team["status"] == "checkedIn"]
+
+            teamList = []
+            for team in raw:
+                if team["status"] == "checkedIn":
+                    players = await eslApi("/play/v1/teams/%s/members"%team["id"])
+                    teamList.append([team["seed"], team["name"], ", ".join([player["user"]["nickname"] for player in players.values() if player["membership"]["role"] != "inactive"])])
             teamList.sort()
                             
             await cupChannel.send("The weekly cup has begun! Good luck to everyone participating!")
-            await cupChannel.send("Here are the seeds participating today:```%s```"%"\n".join(["%s. %s"%(i+1, name[1]) for i, name in enumerate(teamList)]))
+            await cupChannel.send("Here are the seeds participating today:\n\n%s"%"\n".join(["**%s. %s**\n    *%s*"%(i, name[1], name[2]) for i, name in enumerate(teamList)]))
 
         raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
 
         pixlim = 128*3
 
         try:
-            open("tempFile", "r").close()
+            open("tempFile"+textInCup, "r").close()
         except FileNotFoundError:
-            open("tempFile","w").close()
+            open("tempFile"+textInCup,"w").close()
 
-        allcups = []
+        allcups = [cup[1]]
 
         while True:
             await asyncio.sleep(60)
@@ -260,7 +388,7 @@ async def cupTask(cupChannel, textInCup, link):
                 pairings += await eslApi("/play/v1/leagues/%s/matches"%cup2)
 
             for pairing in pairings:
-                f = open("tempFile","r")
+                f = open("tempFile"+textInCup,"r")
                 ids = f.readlines()
                 f.close()
 
@@ -272,7 +400,7 @@ async def cupTask(cupChannel, textInCup, link):
                     continue
 
                 if points[0] == None or points[1] == None or ended == None:
-                    f = open("tempFile","a")
+                    f = open("tempFile"+textInCup,"a")
                     f.write(str(pairing["id"])+"\n")
                     f.close()
                     continue
@@ -336,11 +464,11 @@ async def cupTask(cupChannel, textInCup, link):
                         os.remove("match.png")
                         img.save("match.png")
 
-                f = open("tempFile","a")
+                f = open("tempFile"+textInCup,"a")
                 f.write(str(pairing["id"])+"\n")
                 f.close()
 
-            f = open("tempFile","r")
+            f = open("tempFile"+textInCup,"r")
             ids = f.readlines()
             f.close()
             for pairing in pairings:
@@ -350,18 +478,23 @@ async def cupTask(cupChannel, textInCup, link):
                 if time.time() - cup[0] > 7200 and await eslApi("/play/v1/leagues?types=&states=inProgress&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0") == {}:
                     break
 
-        Popen(["rm","tempFile"])
+        Popen(["rm","tempFile"+textInCup])
         await cupChannel.send("The cup has now ended! Good job everyone!")
-        await cupChannel.send("Here are the final rankings of todays cup:")
 
+        results = []
         for cup2 in allcups:
             ranking = await eslApi("/play/v1/leagues/%s/ranking"%cup2)
             if ranking["ranking"] == None:
                 continue
-            teams2 = [(team["position"], team["team"]["name"]) for team in ranking["ranking"]]
+            teams2 = []
+            for team in ranking["ranking"]:
+                players = await eslApi("/play/v1/teams/%s/members"%team["team"]["id"])
+                teams2.append([team["position"], team["team"]["name"], ", ".join([player["user"]["nickname"] for player in players.values() if player["membership"]["role"] != "inactive"])])
             teams2.sort()
-            await cupChannel.send("```%s```"%"\n".join(["%s. %s"%(team[0],team[1]) for team in teams2]))
-        
+            results.append("%s"%"\n".join(["**%s. %s**\n    *%s*"%(team[0],team[1],team[2]) for team in teams2]))
+
+        await cupChannel.send("Here are the final rankings of today's cup:\n\n%s"%"\n\n\n".join(results))
+
         print("cup done")
         await asyncio.sleep(3600*12)
 
@@ -400,19 +533,37 @@ async def requestImage(url):
 
 @client.event
 async def on_ready():
-    global requestChannel, guild, http
+    global requestChannel, guild, http, errorChannel, mateuszdrwal, conn, c
     
     print(client.user.name)
     print(client.user.id)
 
     requestChannel = client.get_channel(403335187062194188)
     matpmChannel = client.get_channel(412554371923050496)
+    errorChannel = client.get_channel(424701844942618634)
+
+    mateuszdrwal = client.get_user(140504440930041856)
     guild = client.get_guild(326412222119149578)
 
     http = aiohttp.ClientSession()
 
+    conn = sqlite3.connect("requests.db")
+    c = conn.cursor()
+
+    await client.change_presence(game=discord.Game(name='Echo Combat',type=1))
+
+async def errorCatcher(task):
+    global errorChannel, mateuszdrwal
+    try:
+        await task
+    except Exception as e:
+        err = sys.exc_info()
+        await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
 
 client.loop.create_task(loop())
-client.loop.create_task(cupTask(377230334288330753,"cup","/play/v1/leagues?types=&states={}&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0"))
-client.loop.create_task(cupTask(350354518502014976,"week","/play/v1/leagues?types=&states=inProgress,upcoming&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrclechoarena-na-portal&includeHidden=0"))
+client.loop.create_task(errorCatcher(cupTask(
+    377230334288330753
+    #390482469469552643
+                                             ,"cup","/play/v1/leagues?types=&states={}&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(350354518502014976,"week","/play/v1/leagues?types=&states=inProgress,upcoming&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrclechoarena-na-portal&includeHidden=0")))
 client.run(open("token","r").read())
