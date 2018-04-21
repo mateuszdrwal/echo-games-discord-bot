@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3
+import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3, threading, aiohttp_jinja2, jinja2, logging
 from oauth2client.service_account import ServiceAccountCredentials
+from aiohttp_session import setup, get_session
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from PIL import Image, ImageFont, ImageDraw
 from subprocess import Popen, PIPE
+from aiohttp import web
 
 client = discord.Client()
 
-vals = []
-rejVals = []
-doneVals = []
-planVals = []
+with open("secrets","r") as f:
+    secrets = json.loads(f.read())
 
 gs = pygsheets.authorize(service_file="key.json")
 
-ss = gs.open("Echo Arena Feature Requests testing")
+ss = gs.open("Echo Arena Feature Requests")
 allS = ss.worksheet_by_title("All")
 openS  = ss.worksheet_by_title("Open")
 rejS  = ss.worksheet_by_title("Rejected")
@@ -24,20 +25,36 @@ stats = ss.worksheet_by_title("Stats")
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 commentpattern = re.compile("(\d{18})[^>].*?([^\s:-][\s\S]*)")
 
+conn = sqlite3.connect("requests.db")
+c = conn.cursor()
+
+logger = logging.getLogger("logger")
+logger.setLevel(logging.DEBUG)
+f = logging.Formatter("%(asctime)s - %(funcName)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(f)
+fh = logging.FileHandler("logs/%s.log"%str(datetime.datetime.now()))
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(f)
+logger.addHandler(ch)
+logger.addHandler(fh)
+
 async def perm(reaction):
     global guild
     async for user in reaction.users():
         try:
             member = guild.get_member(user.id)
-            if discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member.name == "mateuszdrwal", member.roles) != None:
+            if discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal, member.roles) != None:
                 return True                             
         except:
-            return False
+            pass
+    return False
 
-def updateSheet():
-    global vals, rejVals, doneVals, planVals, c
+async def updateSheet():
+    global c
     
-    for sheet, criteria in [(openS, " WHERE status = 0"),(planS, " WHERE status = 1"),(rejS, " WHERE status = 2"),(doneS, " WHERE status = 3"),(allS, "")]:
+    for sheet, criteria in [(openS, " WHERE status = 0 AND disabled = 0"),(planS, " WHERE status = 1 AND disabled = 0"),(rejS, " WHERE status = 2 AND disabled = 0"),(doneS, " WHERE status = 3 AND disabled = 0"),(allS, " WHERE disabled = 0")]:
 
         c.execute("SELECT * FROM requests"+criteria)
         entries = c.fetchall()
@@ -53,6 +70,8 @@ def updateSheet():
                 status = "Rejected"
             if entry[8] == 3:
                 status = "Implemented"
+            if entry[8] == 4:
+                status = "Not applicable anymore"
 
             c.execute("SELECT * FROM responses WHERE mid = :mid", {"mid": entry[9]})
             responses = c.fetchall()
@@ -71,6 +90,8 @@ def updateSheet():
                             entry[9],
                             entry[10]
                             ])
+            
+            await asyncio.sleep(0.01)
         
         newVals.sort(key=lambda r: int(r[6]))
         newVals.reverse()
@@ -88,230 +109,218 @@ def updateSheet():
     cells.append(pygsheets.Cell("B8"))
     cells[-1].value = "Last updated at: %s"%datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     stats.update_cells(cell_list=cells)
+
+async def updateRequest(message):
+    upvotes = 0
+    downvotes = 0
+    status = 0 #0: open, 1: in-progress, 2: rejected, 3: resolved, 4: Not applicable anymore
+    cont = False
+
+    c.execute("SELECT * FROM votes WHERE mid = :mid", {"mid": message.id})
+    fetched = c.fetchall()
+    uped = [vote[1] for vote in fetched if vote[2] and vote[4]]
+    downed = [vote[1] for vote in fetched if vote[3] and vote[5]]
+    c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
+    fetched = c.fetchall()
+    try:
+        webStatus = bool(fetched[0][13])
+        lastStatus = fetched[0][8]
+    except Exception as e:
+        logger.debug(message)
+        raise e
     
-    vals = []
-    rejVals = []
-    doneVals = []
-    planVals = []
-
-async def loop():
-    global requestChannel, vals, rejVals, doneVals, planVals, guild, conn, c
-    await client.wait_until_ready()
-    await asyncio.sleep(1)
-    while True:
-        try:
-            start = time.time()
-
-            
-            async for message in requestChannel.history(limit=None, reverse=True):
-                
-                results = re.findall(pattern, message.clean_content)
-                comment = re.findall(commentpattern, message.content)
-                
-                if comment != [] and message.author not in guild.members: continue
-                if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author.name == "mateuszdrwal", message.author.roles) != None:
-                    comment = comment[0]
-                    id = int(comment[0])
-
-                    c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": id})
-
-                    if c.fetchall() != []:
-                        c.execute("SELECT * FROM responses WHERE rmid = :rmid", {"rmid":message.id})
-
-                        if c.fetchall() == []:
-                            c.execute("INSERT INTO responses VALUES (:mid, :rmid, :resp)",{"mid": id, "rmid": message.id, "resp": comment[1]})
-                            conn.commit()
-                            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
-                        else:
-                            c.execute("UPDATE responses SET response = :resp WHERE mid = :mid AND rmid = :rmid",{"mid": id, "rmid": message.id, "resp": comment[1]})
-                        
-##                    for array in [vals, rejVals, doneVals]:
-##                        msg = discord.utils.find(lambda r: r["mid"] == id, array)
-##                        if msg != None:
-##                            msg["devresp"].append(comment[1])
-##                            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
-##                            break
-                    continue
-                    
-                if results == [] or message.id == 403337281068466197:
-                    continue
-
-
-
-                upvotes = 0
-                downvotes = 0
-                status = 0 #0: open, 1: in-progress, 2: rejected, 3: resolved
-                cont = False
-                #voted = []
-
-                c.execute("SELECT * FROM votes WHERE mid = :mid", {"mid": message.id})
-                fetched = c.fetchall()
-                uped = [vote[1] for vote in fetched if vote[2] and vote[4]]
-                downed = [vote[1] for vote in fetched if vote[3] and vote[5]]
-                
-                for reaction in message.reactions:
-                    if reaction.emoji == "\u26d4":
-                        if await perm(reaction):
-                            c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": message.id})
-                            c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": message.id})
-                            c.execute("DELETE FROM responses WHERE mid = :mid", {"mid": message.id})
-                            conn.commit()
-                            cont = True
-                            break
-                        
-                    elif reaction.emoji == "\U0001f5d3":
-                        if await perm(reaction) and status < 1:
-                            status = 1
-                    elif reaction.emoji == "\u274c":
-                        if await perm(reaction) and status < 2:
-                            status = 2
-                    elif reaction.emoji == "\u2705":
-                        if await perm(reaction) and status < 3:
-                            status = 3
-
-                    elif reaction.emoji == "\U0001f44e":
-                        async for user in reaction.users():
-                            if reaction.message.author == user:
-                                continue
-
-                            c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
-                            fetched = c.fetchall()
-                            if fetched != []:
-                                if fetched[0][3] != 1 or fetched[0][5] != 1:
-                                    c.execute("UPDATE votes SET down = 1 AND downDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
-                            else:
-                                c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, 1, 0, 1)", {"mid": message.id, "uid": user.id})
-
-                            conn.commit()
-                            
-                            try:
-                                downed.remove(user.id)
-                            except ValueError:
-                                pass
-                        #downvotes = reaction.count
-                        
-                    elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
-                        async for user in reaction.users():
-                            if reaction.message.author == user:
-                                continue
-
-                            c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
-                            fetched = c.fetchall()
-                            if fetched != []:
-                                if fetched[0][2] != 1 or fetched[0][4] != 1:
-                                    c.execute("UPDATE votes SET up = 1 AND upDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
-                            else:
-                                c.execute("INSERT INTO votes VALUES (:mid, :uid, 1, 0, 1, 0)", {"mid": message.id, "uid": user.id})
-
-                            conn.commit()
-                            
-                            try:
-                                uped.remove(user.id)
-                            except ValueError:
-                                pass
-    
-                            #voted.append(user)
-                            #upvotes += 1
-                            
-                if cont:
-                    continue
-
-                for user in uped:
-                    c.execute("UPDATE votes SET up = 0 AND upDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
-                for user in downed:
-                    c.execute("UPDATE votes SET down = 0 AND downDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
+    for reaction in message.reactions:
+        if reaction.emoji == "\u26d4":
+            if await perm(reaction):
+                c.execute("UPDATE requests SET disabled = 1 WHERE mid = :mid", {"mid": message.id})
                 conn.commit()
+                return
+            
+        elif reaction.emoji == "\U0001f5d3":
+            if await perm(reaction) and status < 1 and not webStatus:
+                status = 1
+        elif reaction.emoji == "\u274c":
+            if await perm(reaction) and status < 2 and not webStatus:
+                status = 2
+        elif reaction.emoji == "\u2705":
+            if await perm(reaction) and status < 3 and not webStatus:
+                status = 3
 
-                c.execute("SELECT count(*) FROM votes WHERE up = 1 AND mid = :mid", {"mid": message.id})
-                upvotes = c.fetchall()[0][0]
-                c.execute("SELECT count(*) FROM votes WHERE down = 1 AND mid = :mid", {"mid": message.id})
-                downvotes = c.fetchall()[0][0]
+        elif reaction.emoji == "\U0001f44e":
+            async for user in reaction.users():
 
-                c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
+                if reaction.message.author.bot:
+                    if reaction.message.mentions[0] == user:
+                        continue
+                else:
+                    if reaction.message.author == user:
+                        continue
+
+                c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
                 fetched = c.fetchall()
                 if fetched != []:
-                    c.execute("""UPDATE requests SET
-                    author = :author,
-                    sugType = :sugType,
-                    title = :title,
-                    category = :category,
-                    description = :description,
-                    up = :up,
-                    down = :down,
-                    status = :status
-                    WHERE mid = :mid""", {
-                        "author": "%s#%s"%(message.author.name, message.author.discriminator),
-                        "sugType": results[0][0],
-                        "title": results[0][1],
-                        "category": results[0][2],
-                        "description": results[0][3],
-                        "up": upvotes,
-                        "down": downvotes,
-                        "status": status,
-                        "mid": message.id
-                        })
+                    if fetched[0][3] != 1 or fetched[0][5] != 1:
+                        c.execute("UPDATE votes SET down = 1, downDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
                 else:
-                    c.execute("""INSERT INTO requests VALUES (
-                    :time,
-                    :author,
-                    :sugType,
-                    :title,
-                    :category,
-                    :description,
-                    :up,
-                    :down,
-                    :status,
-                    :mid,
-                    :uid
-                    )""", {
-                        "time": message.created_at.timestamp(),
-                        "author": "%s#%s"%(message.author.name, message.author.discriminator),
-                        "sugType": results[0][0],
-                        "title": results[0][1],
-                        "category": results[0][2],
-                        "description": results[0][3],
-                        "up": upvotes,
-                        "down": downvotes,
-                        "status": status,
-                        "mid": message.id,
-                        "uid": message.author.id
-                        })
+                    c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, 1, 0, 1)", {"mid": message.id, "uid": user.id})
 
                 conn.commit()
                 
-##                entry = {"time": message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-##                        "author": "%s#%s"%(message.author.name, message.author.discriminator),
-##                        "type": results[0][0],
-##                        "title": results[0][1],
-##                        "category": results[0][2],
-##                        "description": results[0][3],
-##                        "points": str(upvotes-downvotes),
-##                        "upvotes": str(upvotes),
-##                        "downvotes": str(downvotes),
-##                        "status": status,
-##                        "devresp": [],
-##                        "mid": message.id,
-##                        "aid": message.author.id
-##                        }
-
-##                sugType = results[0][0].lower()
-##
-##                if status == 1:
-##                    planVals.append(entry)
-##                elif status == 2:
-##                    rejVals.append(entry)
-##                elif status == 3:
-##                    doneVals.append(entry)
-##                else:
-##                    vals.append(entry)
+                try:
+                    downed.remove(user.id)
+                except ValueError:
+                    pass
             
-            updateSheet()
-            end = time.time()
-            print("updated %ss"%round(end-start,3))
+        elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
+            async for user in reaction.users():
+                if reaction.message.author.bot:
+                    if reaction.message.mentions[0] == user:
+                        continue
+                else:
+                    if reaction.message.author == user:
+                        continue
+
+                c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                fetched = c.fetchall()
+                if fetched != []:
+                    if fetched[0][2] != 1 or fetched[0][4] != 1:
+                        c.execute("UPDATE votes SET up = 1, upDiscord = 1 WHERE :mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
+                else:
+                    c.execute("INSERT INTO votes VALUES (:mid, :uid, 1, 0, 1, 0)", {"mid": message.id, "uid": user.id})
+
+                conn.commit()
+                
+                try:
+                    uped.remove(user.id)
+                except ValueError:
+                    pass
+
+    for user in uped:
+        c.execute("UPDATE votes SET up = 0, upDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
+    for user in downed:
+        c.execute("UPDATE votes SET down = 0, downDiscord = 0 WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user})
+    conn.commit()
+
+    c.execute("SELECT count(*) FROM votes WHERE up = 1 AND mid = :mid", {"mid": message.id})
+    upvotes = c.fetchall()[0][0]
+    c.execute("SELECT count(*) FROM votes WHERE down = 1 AND mid = :mid", {"mid": message.id})
+    downvotes = c.fetchall()[0][0]
+
+    devresp = []
+    c.execute("SELECT * FROM responses WHERE mid = :mid", {"mid": message.id})
+    for response in c.fetchall():
+        devresp.append(str(jinja2.escape("%s:\n%s"%(response[3],response[2]))).replace("\n","<br/>"))
+    devresp = "<br/><br/>".join(devresp)
+
+    c.execute("UPDATE requests SET up = :up, down = :down, status = :status, devresp = :devresp WHERE mid = :mid", {"mid": message.id, "up": upvotes, "down": downvotes, "status": status if not webStatus else lastStatus, "devresp": devresp, "author": "%s#%s"%(message.author.name, message.author.discriminator) if not message.author.bot else "%s#%s"%(message.mentions[0].name, message.mentions[0].discriminator)})
+    
+    conn.commit()
+
+async def analyzeMessage(message, force=False):
+    results = re.findall(pattern, message.clean_content)
+    comment = re.findall(commentpattern, message.content)
+    
+    if comment != [] and message.author not in guild.members: return
+    if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author == mateuszdrwal, message.author.roles) != None:
+        comment = comment[0]
+        id = int(comment[0])
+
+        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": id})
+
+        if c.fetchall() != []:
+            c.execute("SELECT * FROM responses WHERE rmid = :rmid", {"rmid":message.id})
+
+            if c.fetchall() == []:
+                c.execute("INSERT INTO responses VALUES (:mid, :rmid, :resp, :author)",{"mid": id, "rmid": message.id, "resp": comment[1], "author": message.author.name})
+                conn.commit()
+                await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+            else:
+                c.execute("UPDATE responses SET response = :resp WHERE mid = :mid AND rmid = :rmid",{"mid": id, "rmid": message.id, "resp": comment[1]})
+
+            await updateRequest(await requestChannel.get_message(id))
+        return
+        
+    if results == [] or message.id == 403337281068466197:
+        if force:
+            await updateRequest(message)
+        return
+    
+
+    c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
+    fetched = c.fetchall()
+    if fetched != []:
+        c.execute("""UPDATE requests SET
+        sugType = :sugType,
+        title = :title,
+        category = :category,
+        description = :description,
+        up = 0,
+        down = 0
+        WHERE mid = :mid""", {
+            "sugType": results[0][0],
+            "title": results[0][1],
+            "category": results[0][2],
+            "description": results[0][3],
+            "mid": message.id
+            })
+    else:
+        c.execute("""INSERT INTO requests VALUES (
+        :time,
+        :author,
+        :sugType,
+        :title,
+        :category,
+        :description,
+        0,
+        0,
+        0,
+        :mid,
+        :uid,
+        "",
+        0,
+        0
+        )""", {
+            "time": message.created_at.timestamp(),
+            "author": "%s#%s"%(message.author.name, message.author.discriminator),
+            "sugType": results[0][0],
+            "title": results[0][1],
+            "category": results[0][2],
+            "description": results[0][3],
+            "mid": message.id,
+            "uid": message.author.id
+            })
+        logger.info("new suggestion: %s"%results[0][1])
+
+    conn.commit()
+
+    await updateRequest(message)
+
+async def loop():
+    global requestChannel, guild, conn, c
+    await client.wait_until_ready()
+    await asyncio.sleep(1)
+
+    async for message in requestChannel.history(limit=None, reverse=True):
+        await analyzeMessage(message)
+
+    logger.info("initial update done")
+    
+    while True:
+        try:
+
+            c.execute("SELECT * FROM requests")
+            for request in c.fetchall():
+                try:
+                    message = await requestChannel.get_message(request[9])
+                except discord.NotFound:
+                    continue
+                await analyzeMessage(message, True)
+
+            await updateSheet()
             await asyncio.sleep(600)
 
         except Exception as error:
-            raise error
+            logger.debug(error)
             gs = pygsheets.authorize(service_file="key.json")
 
             ss = gs.open("Echo Arena Feature Requests")
@@ -322,8 +331,51 @@ async def loop():
             planS  = ss.worksheet_by_title("Planned")
             stats = ss.worksheet_by_title("Stats")
 
+async def backup():
+    while True:
+        await asyncio.sleep(3600*12)
+        logger.info("backing up db")
+        Popen(["cp", "requests.db", "backups/backup-%s.db"%round(time.time())])
+
+@client.event
+async def on_reaction_add(reaction, user):
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
+    if reaction.message.channel == requestChannel: await analyzeMessage(reaction.message)
+
+@client.event
+async def on_reaction_remove(reaction, user):
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
+    if reaction.message.channel == requestChannel: await analyzeMessage(reaction.message)
+
+@client.event
+async def on_reaction_clear(message, reactions):
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
+    if message.channel == requestChannel: await analyzeMessage(message)
+
+@client.event
+async def on_message(message):
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
+    if message.channel == requestChannel: await analyzeMessage(message)
+
+@client.event
+async def on_message_edit(before, message):
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
+    if message.channel == requestChannel: await analyzeMessage(message)
+
 async def cupTask(cupChannel, textInCup, link):
-    await client.wait_until_ready()
+    if not client.is_ready():
+        await client.wait_until_ready()
+        await asyncio.sleep(5)
     await asyncio.sleep(5)
 
     cupChannel = client.get_channel(cupChannel)
@@ -348,7 +400,7 @@ async def cupTask(cupChannel, textInCup, link):
 
         waitTime = cup[0]-time.time()
         if waitTime > 0:
-            print("waiting %s"%waitTime)
+            logger.info("waiting %s"%waitTime)
             await asyncio.sleep(waitTime)
 
             raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
@@ -361,11 +413,11 @@ async def cupTask(cupChannel, textInCup, link):
             teamList.sort()
                             
             await cupChannel.send("The weekly cup has begun! Good luck to everyone participating!")
-            await cupChannel.send("Here are the seeds participating today:\n\n%s"%"\n".join(["**%s. %s**\n    *%s*"%(i, name[1], name[2]) for i, name in enumerate(teamList)]))
+            await cupChannel.send("Here are the seeds participating today:\n\n%s"%"\n".join(["**%s. %s**\n    *%s*"%(i+1, name[1], name[2]) for i, name in enumerate(teamList)]))
 
         raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
 
-        pixlim = 128*3
+        pixlim = 384
 
         try:
             open("tempFile"+textInCup, "r").close()
@@ -495,20 +547,34 @@ async def cupTask(cupChannel, textInCup, link):
 
         await cupChannel.send("Here are the final rankings of today's cup:\n\n%s"%"\n\n\n".join(results))
 
-        print("cup done")
+        logger.info("cup done")
         await asyncio.sleep(3600*12)
 
 async def eslApi(path):
-    raw = await request("https://api.eslgaming.com"+path)
+    raw = await get("https://api.eslgaming.com"+path)
     return json.loads(raw)
 
-async def request(url):
+async def get(url, headers=None):
     global http
     while True:
         try:
             with async_timeout.timeout(30):
-                async with http.get(url) as response:
+                async with http.get(url, headers=headers) as response:
                     return await response.text()
+        except aiohttp.client_exceptions.ServerDisconnectedError:
+            pass
+        except asyncio.TimeoutError:
+            pass
+        except Exception as e:
+            raise e
+
+async def post(url, data=None, headers=None):
+    global http
+    while True:
+        try:
+            with async_timeout.timeout(30):
+                async with http.post(url, data=data, headers=headers) as response:
+                    return await response.json()
         except aiohttp.client_exceptions.ServerDisconnectedError:
             pass
         except asyncio.TimeoutError:
@@ -533,10 +599,10 @@ async def requestImage(url):
 
 @client.event
 async def on_ready():
-    global requestChannel, guild, http, errorChannel, mateuszdrwal, conn, c
+    global requestChannel, guild, errorChannel, mateuszdrwal
     
-    print(client.user.name)
-    print(client.user.id)
+    logger.debug(client.user.name)
+    logger.debug(client.user.id)
 
     requestChannel = client.get_channel(403335187062194188)
     matpmChannel = client.get_channel(412554371923050496)
@@ -545,12 +611,9 @@ async def on_ready():
     mateuszdrwal = client.get_user(140504440930041856)
     guild = client.get_guild(326412222119149578)
 
-    http = aiohttp.ClientSession()
+    await client.change_presence(activity=discord.Activity(name='Echo Combat',type=discord.ActivityType.streaming))
 
-    conn = sqlite3.connect("requests.db")
-    c = conn.cursor()
-
-    await client.change_presence(game=discord.Game(name='Echo Combat',type=1))
+    logger.info("discord.py initialized")
 
 async def errorCatcher(task):
     global errorChannel, mateuszdrwal
@@ -560,10 +623,310 @@ async def errorCatcher(task):
         err = sys.exc_info()
         await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
 
+@client.event
+async def on_error(event, *args, **kwargs):
+    await client.wait_until_ready()
+    await asyncio.sleep(1)
+    err = sys.exc_info()
+    await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
+    logger.warn("".join(traceback.format_tb(err[2])),err[1].args[0])
+
+async def startup():
+    global http, conn, c
+    http = aiohttp.ClientSession()
+
+    conn = sqlite3.connect("requests.db")
+    c = conn.cursor()
+
+
+client.loop.create_task(startup())
 client.loop.create_task(loop())
+client.loop.create_task(backup())
 client.loop.create_task(errorCatcher(cupTask(
-    377230334288330753
-    #390482469469552643
+                                             377230334288330753
+                                             #390482469469552643
                                              ,"cup","/play/v1/leagues?types=&states={}&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0")))
 client.loop.create_task(errorCatcher(cupTask(350354518502014976,"week","/play/v1/leagues?types=&states=inProgress,upcoming&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrclechoarena-na-portal&includeHidden=0")))
-client.run(open("token","r").read())
+client.loop.create_task(client.start(secrets["discord token"]))
+
+
+
+
+redirect = "http://178.62.89.61/auth"
+
+routes = web.RouteTableDef()
+app = web.Application(loop=client.loop)
+aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('./templates'))
+
+def who(session, request):
+    return "%s (%s)"%(session["username"], request.remote) if "username" in session else request.remote
+
+@routes.get("/")
+@aiohttp_jinja2.template("home.html")
+async def home(request):
+    session = await get_session(request)
+    return {"error": request.query.get("error", None), "success": request.query.get("success", None), **session}
+
+@routes.get("/requests")
+@aiohttp_jinja2.template("requests.html")
+async def requests(request):
+    session = await get_session(request)
+    try:
+        assert "sort" in request.query and "filter" in request.query
+        assert 0 <= int(request.query["sort"]) < 4 and 0 <= int(request.query["filter"]) < 8
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    sort = int(request.query["sort"])
+    if sort == 0:
+        sort = "up-down DESC"
+    elif sort == 1:
+        sort = "up-down ASC"
+    elif sort == 2:
+        sort = "created DESC"
+    elif sort == 3:
+        sort = "created ASC"
+
+    filt = int(request.query["filter"])
+    if filt == 0:
+        filt = ""
+    elif filt == 1:
+        filt = " AND status = 1"
+    elif filt == 2:
+        filt = " AND status = 3"
+    elif filt == 3:
+        filt = " AND status = 2"
+    elif filt == 4:
+        filt = " AND status = 0"
+    elif filt == 5:
+        filt = " AND up-down > 0"
+    elif filt == 6:
+        filt = " AND up-down < 0"
+    elif filt == 7:
+        filt = " AND status = 4"
+    
+    if request.query.get("request","null") == "null":
+        c.execute("SELECT * FROM requests WHERE disabled = 0%s ORDER BY %s"%(filt, sort))
+    else:
+        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["request"]})
+    fetched = c.fetchall()
+    
+    requests = {request[9]: {"date": datetime.date.fromtimestamp(request[0]).isoformat(),
+                             "time": datetime.datetime.fromtimestamp(request[0]).isoformat(),
+                             "author": request[1],
+                             "sugtype": request[2],
+                             "title": request[3],
+                             "category": request[4],
+                             "description": request[5],
+                             "up": request[6],
+                             "down": request[7],
+                             "status": ["Open","Planned","Rejected","Implemented","Not applicable anymore"][request[8]],
+                             "statusCode": request[8],
+                             "mid": request[9],
+                             "uid": request[10],
+                             "vote": {},
+                             "devresp": request[11],
+                             "self": int(request[10]) == int(session.get("id",0))
+                             } for request in fetched}
+    
+    votes = []
+    if "username" in session:
+        c.execute("SELECT * FROM votes WHERE uid = :uid", {"uid": session["id"]})
+        fetched = c.fetchall()
+        for vote in fetched:
+            if vote[0] not in requests: continue
+            requests[vote[0]]["vote"]["up"] = vote[2]
+            requests[vote[0]]["vote"]["down"] = vote[3]
+            requests[vote[0]]["vote"]["upDiscord"] = vote[4]
+            requests[vote[0]]["vote"]["downDiscord"] = vote[5]
+
+    return {"requests":[request for request in requests.values()], "admin": session.get("admin", False)}
+
+@routes.get("/login")
+async def login(request):
+    return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=http%3A%2F%2F178.62.89.61%2Fauth&response_type=code&scope=identify")
+
+@routes.get("/auth")
+async def auth(request):
+    try:
+        if "code" not in request.query:
+            return web.HTTPFound("/")
+        data = {
+            'client_id': secrets["client id"],
+            'client_secret': secrets["client secret"],
+            'grant_type': 'authorization_code',
+            'code': request.query["code"],
+            'redirect_uri': redirect
+        }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        response = await post("https://discordapp.com/api/oauth2/token", data, headers)
+        assert "access_token" in response
+        response = json.loads(await get("https://discordapp.com/api/users/@me", {"Authorization": "Bearer %s"%response["access_token"]}))
+        assert "username" in response
+        session = await get_session(request)
+        session["username"] = response["username"]
+        session["id"] = response["id"]
+        session["avatar"] = "https://cdn.discordapp.com/avatars/%s/%s.png?size=32"%(response["id"], response["avatar"])
+
+        member = guild.get_member(int(response["id"]))
+        if member != None and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal, member.roles) != None:
+            session["admin"] = True
+            logger.info("admin %s logged in"%response["username"])
+        else:
+            session["admin"] = False
+            logger.info("%s logged in"%response["username"])
+        return web.HTTPFound("/")
+    except AssertionError:
+        logger.warn("error when logging in %s. queries: %s discord api response: %s"%(request.remote, request.query, response))
+        return web.HTTPFound("/?error=An+error+has+occurred+while+trying+to+log+in.+Please+try+again.+If+the+issue+persists+please+PM+me%2C+mateuszdrwal%239960")
+
+@routes.get("/logout")
+async def logout(request):
+    session = await get_session(request)
+    if "username" in session:
+        logger.info("%s logging out"%session["username"])
+    else:
+        logger.warn("%s logging out without being logged in"%request.remote)
+    session.invalidate()
+    return web.HTTPFound("/")
+
+@routes.get("/vote")
+async def vote(request):
+    try:
+        session = await get_session(request)
+        if session.get("username") == None: return web.HTTPFound("/login") #redirect if not logged in
+        assert "id" in request.query and "target" in request.query and "up" in request.query #all queries are present
+        assert len(request.query["id"]) == 18 and request.query["target"] in ["0","1"] and request.query["up"] in ["0","1"] #query data is valid
+        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["id"]})
+        fetched = c.fetchall()
+        assert fetched != [] #request exists
+        assert int(fetched[0][10]) != int(session["id"]) #not voting on yourself
+        c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": request.query["id"], "uid": session["id"]})
+        fetched = c.fetchall()
+        if fetched != []:
+            if int(request.query["up"]):
+                assert not fetched[0][4]#not voted on discord
+            else:
+                assert not fetched[0][5]#not voted on discord
+
+        if fetched == []:
+            if int(request.query["up"]):
+                c.execute("INSERT INTO votes VALUES (:mid, :uid, :target, 0, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+            else:
+                c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, :target, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+        else:
+            if int(request.query["up"]):
+                c.execute("UPDATE votes SET up = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+            else:
+                c.execute("UPDATE votes SET down = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+        conn.commit()
+        await updateRequest(await requestChannel.get_message(request.query["id"]))
+        logger.info("%s %svoted %s setting %svote"%(session["username"], "" if int(request.query["target"]) else "un", request.query["id"], "up" if int(request.query["up"]) else "down"))
+        return web.Response(text="OK")
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+@routes.post("/newrequest")
+async def newrequest(request):
+    data = await request.post()
+    session = await get_session(request)
+    try:
+        assert "title" in data and "type" in data and "category" in data and "description" in data
+        assert len(data["title"]) <= 100 and len(data["type"]) <= 100 and len(data["category"]) <= 100 and len(data["description"]) <= 2000
+        assert "username" in session
+        assert client.get_user(int(session["id"])) != None
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    
+    user = client.get_user(int(session["id"]))
+    message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**What kind of submission is this?**: %s\n**Category**: %s\n**Description**: %s"%(user.mention, data["title"], data["type"], data["category"], data["description"]))
+    c.execute("INSERT INTO requests VALUES (:created, :author, :type, :title, :category, :description, 0, 0, 0, :mid, :uid, '', 0, 0)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "type": data["type"], "title": data["title"], "category": data["category"], "description": data["description"], "mid": message.id, "uid": user.id})
+    conn.commit()
+    logger.info("%s created a request titled \"%s\""%(session["username"], data["title"]))
+    return web.HTTPFound("/?success=Request%20created%21")
+
+@routes.post("/devresp")
+async def devresp(request):
+    data = await request.post()
+    session = await get_session(request)
+    try:
+        assert "id" in data and "devresp" in data
+        assert len(data["id"]) == 18
+        assert "username" in session
+        assert session["admin"]
+        assert data["devresp"] != ""
+        int(data["id"])
+        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": data["id"]})
+        assert c.fetchall() != []
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    c.execute("INSERT INTO responses VALUES (:mid, 0, :resp, :author)", {"mid": data["id"], "resp": data["devresp"], "author": session["username"]})
+    conn.commit()
+    await updateRequest(await requestChannel.get_message(data["id"]))
+    logger.info("%s responded to %s"%(session["username"], data["id"]))
+    return web.Response(text="OK")
+
+@routes.get("/remove")
+async def remove(request):
+    session = await get_session(request)
+    try:
+        assert "id" in request.query
+        assert len(request.query["id"]) == 18
+        int(request.query["id"])
+        assert "username" in session
+        assert session["admin"]
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    c.execute("UPDATE requests SET disabled = 1 WHERE mid = :mid", {"mid": request.query["id"]})
+    conn.commit()
+    logger.info("%s removed %s"%(session["username"], request.query["id"]))
+    return web.Response(text="OK")
+
+@routes.get("/status")
+async def status(request):
+    session = await get_session(request)
+    try:
+        assert "id" in request.query and "target" in request.query
+        assert len(request.query["id"]) == 18
+        int(request.query["id"])
+        assert "username" in session
+        assert session["admin"]
+        int(request.query["target"])
+        assert 0 <= int(request.query["target"]) < 5
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    c.execute("UPDATE requests SET status = :status, webStatus = :webStatus WHERE mid = :mid", {"status": request.query["target"], "webStatus": 1 if int(request.query["target"]) != 0 else 0,"mid": request.query["id"]})
+    conn.commit()
+    logger.info("%s updated status of %s to %s"%(session["username"], request.query["id"], ["Open","Planned","Rejected","Implemented","Not applicable anymore"][int(request.query["target"])]))
+    return web.Response(text="OK")
+
+app.router.add_static("/static","static")
+setup(app, EncryptedCookieStorage(open("cookiekey", "rb").readline()))
+app.add_routes(routes)
+web.run_app(app,port=80)

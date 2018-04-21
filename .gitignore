@@ -1,6 +1,9 @@
-token
 key.json
 *.ttf
 match.png
 requests.db
-temp*
+tempFile*
+cookiekey
+logs
+backups
+secrets

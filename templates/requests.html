@@ -1,0 +1,75 @@
+
+{% for request in requests %}
+<div class="modal fade" id="{{ request.mid }}modal" role="dialog" aria-labelledby="{{ request.mid }}label" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="{{ request.mid }}label">{{ request.title }}</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+			</div>
+			<div class="modal-body">
+				<b>Author:</b> {{ request.author }}<br/>
+				<b>Created at:</b> {{ request.time }} UTC<br/>
+				<b>Status:</b> {{ request.status }}<br/>
+				<b>Suggestion type:</b> {{ request.sugtype }}<br/>
+				<b>Category:</b> {{ request.category }}<br/><br/>
+				<b>Description:</b> {{ request.description }}<br/><br/>
+				<b>Net votes:</b> {{ request.up - request.down }}<br/>
+				<b>Upvotes:</b> {{ request.up }}<br/>
+				<b>Downvotes:</b> {{ request.down }}<br/><br/>
+				<b>Developer responses:</b><br/>{{ request.devresp|safe }}
+			</div>
+			<div class="modal-footer flex-wrap">
+				<textarea id="{{ request.mid }}copy" style="display: none;"></textarea>
+				<button type="button" class="btn btn-primary mb-3" onclick="var copy = $('#{{ request.mid }}copy')[0]; copy.style.display = 'inline'; copy.innerHTML = document.URL+'?request={{ request.mid }}'; copy.select(); document.execCommand('Copy'); copy.style.display = 'none'; copy.innerHTML = ''; this.innerHTML = 'Link copied!';">Share</button>
+			{% if admin %}
+				<span class="dropdown mb-3">
+					<button class="btn btn-primary dropdown-toggle" type="button" id="devresp" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{ request.status }}</button>
+					<div class="dropdown-menu" aria-labelledby="devresp">
+						<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('{{ request.mid }}', 0);">Open</button>
+						<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('{{ request.mid }}', 3);">Implemented</button>
+						<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('{{ request.mid }}', 2);">Rejected</button>
+						<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('{{ request.mid }}', 1);">Planned</button>
+						<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('{{ request.mid }}', 4);">Not applicable anymore</button>
+					</div>
+				</span>
+				<button type="button" class="btn btn-primary mb-3" data-dismiss="modal" onclick="var resp = prompt('type your respone here'); if (resp != null) {devresp('{{ request.mid }}', resp);}">Add developer response</button>
+				<button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="if (confirm('Are you sure you want to remove this request?')) {remove('{{ request.mid }}')}">Remove request</button>
+			{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+{% endfor %}
+<ul class="list-group mt-3 mb-3">
+	{% for request in requests %}
+	<li class="list-group-item{% if request.statusCode == 1 %} list-group-item-warning{% elif request.statusCode == 2 %} list-group-item-danger{% elif request.statusCode == 3 %} list-group-item-success{% elif request.statusCode == 4 %} list-group-item-secondary{% endif %}">
+		<div class="d-flex w-100 justify-content-between">
+			<div>
+				<h5 class="mb-1">{{ request.title }}</h5>
+			</div>
+			<small class="text-nowrap">{{ request.date }}<br/>{% if request.status == "Open" %}Status: {{ request.status }}{% else %}<b>Status: {{ request.status }}</b>{% endif %}</small>
+		</div>
+		<p style="margin-bottom: 0.2em">{{ request.description }}</p>
+		<div class="d-flex justify-content-between flex-wrap">
+			<small style="margin-bottom: 0.2em">{{ request.author }}</small>
+			<div class="d-flex flex-nowrap ml-auto">
+				<span class="ml-2">
+					<button type="button" class="btn btn-primary" data-toggle="modal" data-target="#{{ request.mid }}modal">Details</button>
+				</span>
+				<span class="mr-1 ml-1"{% if request.vote.upDiscord or request.self %} data-toggle="tooltip" data-placement="bottom" title="{% if request.self %}You cannot vote for yourself.{% else %}This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #ea-feature-requests channel.{% endif %}"{% endif %}>
+					<button type="button" class="btn btn{% if not request.vote.up %}-outline{% endif %}-success" onclick="vote('{{ request.mid }}', {{ request.vote.up|default("0") }}, 1);" style="width: 4em;{% if request.vote.upDiscord or request.self %} pointer-events: none;" disabled{% else %}" {% endif %}>{{ request.up }} &#x1F44D;</button>
+				</span>
+				<span{% if request.vote.downDiscord or request.self %} data-toggle="tooltip" data-placement="bottom" title="{% if request.self %}You cannot vote for yourself.{% else %}This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #ea-feature-requests channel.{% endif %}"{% endif %}>
+					<button type="button" class="btn btn{% if not request.vote.down %}-outline{% endif %}-danger" onclick="vote('{{ request.mid }}', {{ request.vote.down|default("0") }}, 0);" style="width: 4em;{% if request.vote.downDiscord or request.self %} pointer-events: none;" disabled{% else %}" {% endif %}>{{ request.down }} &#x1F44E;</button>
+				</span>
+			</div>
+		</div>
+		{% if request.devresp != "" %}
+		<div class="alert alert-primary mt-3" role="alert">
+			{{ request.devresp|safe }}
+		</div>
+		{% endif %}
+	</li>
+	{% endfor %}
+</ul>

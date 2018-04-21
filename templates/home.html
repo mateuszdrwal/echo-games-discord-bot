@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<!-- Required meta tags -->
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+		<!-- Bootstrap CSS -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+		<title>Feature Requests</title>
+		<link rel="icon" href="/static/icon.png">
+		<style type="text/css">
+			@media only screen and (max-width: 23.5rem) {
+				.navbar-brand {
+					font-size: 1rem
+				}
+			}
+		</style>
+	</head>
+	<body>
+
+		<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+
+		<nav class="navbar sticky-top navbar-expand-md navbar-dark bg-dark">
+			<a class="navbar-brand" href="/">Echo Arena Feature Requests</a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+
+			<div class="ml-auto collapse navbar-collapse" id="navbarNav">
+				<ul class="navbar-nav">
+					<li class="navbar-item">
+						<a class="btn btn-primary text-nowrap" {% if username is defined %}data-toggle="modal" data-target="#requestmodal" href=""{% else %}href="/login"{% endif %}>Create Feature Request</a>
+					</li>
+				</ul>
+				<ul class="navbar-nav ml-auto">
+					{% if username is defined %}
+					<li class="navbar-item d-flex align-items-center">
+						<img src="{{ avatar }}" style="height: 2em; width: 2em">
+						{% endif %}
+						<span class="navbar-text ml-1 mr-3">{% if username is defined %}{{ username }}{% else %}Not logged in{% endif %}</span>
+					</li>
+					<li class="navbar-item mt-2 mt-md-0">
+						{% if username is undefined %}
+						<a class="btn btn-primary" role="Button" href="/login">Log In</a>
+						{% else %}
+						<a class="btn btn-primary" role="Button" href="/logout">Log Out</a>
+						{% endif %}
+					</li>
+				</ul>
+			</div>
+		</nav>
+
+		<div class="modal fade" id="requestmodal" role="dialog" aria-labelledby="requestlabel" aria-hidden="true">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="requestlabel">New request</h5>
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					</div>
+					<div class="modal-body">
+						<form method="post" action="/newrequest">
+							<div class="form-group">
+								<input class="form-control" type="text" placeholder="Title" name="title" maxlength="100" required>
+							</div>
+							<div class="form-group">
+								<select class="form-control" name="type">
+									<option>Feature request</option>
+									<option>Improving an existing feature</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<input class="form-control" type="text" placeholder="Category" name="category" maxlength="100" required>
+							</div>
+							<div class="form-group">
+								<textarea class="form-control" name="description" placeholder="description" rows="5" maxlength="2000" required></textarea>
+							</div>
+
+							<button type="submit" class="btn btn-primary">Submit</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		{% if error is not none %}
+		<div class="container mt-3">
+			<div class="alert alert-danger" role="alert">
+				{{ error }}
+			</div>
+		</div>
+		{% endif %}
+
+		{% if success is not none %}
+		<div class="container mt-3">
+			<div class="alert alert-success" role="alert">
+				{{ success }}
+			</div>
+		</div>
+		{% endif %}
+
+		{% if username is not defined %}
+		<div class="container mt-3">
+			<div class="alert alert-success" role="alert">
+				Please <a href="/login">log in</a> if you want to vote on requests and see which you have already voted on!
+			</div>
+		</div>
+		{% endif %}
+
+		{% if admin %}
+		<div class="container mt-3">
+			<div class="jumbotron">
+				<h1>Welcome Admin!</h1>
+				<p>You have a couple more options here than the average user:</p>
+				<ul>
+					<li><p>Change the status of all requests. Overrides any status set from discord if it's anything other than Open. This is done in the details popup.</p></li>
+					<li><p>Remove any request. This is semi-permanent, you will have to contact me if you want to reverse it. This is also done in the details popup.</p></li>
+					<li><p>Add a developer response to any request. Your name will be visible on it. Again, semi-permanent, contact me to reverse. Also, you guessed it, this is also done in the details popup.</p></li>
+				</ul>
+				<p>Remember that these functions are all also available on discord:</p>
+				<ul>
+					<li><p>React on the message with &#128467;, &#9989;, &#10060; or nothing to set the request to planned, implemented, rejected or open respectively.</p></li>
+					<li><p>React on the message with &#9940; to remove it from this website and the spreadsheet.</p></li>
+					<li><p>Prefix you response with the message id of the message to add a developer response. An example response looks like this: "123456789012345678 this is the dev response". The message id can be obtained from the spreadsheet or by enabling developer mode in discord under Appearance and right clicking the message.</p></li>
+				</ul>
+				<p>If something doesn't work, dont hesitate to contact me. I'll be happy to fix it.</p>
+				<p>Contact: mateuszdrwal#9960 on discord, drwal.mateusz@gmail.com otherwise.</p>
+			</div>
+		</div>
+		{% endif %}
+
+		<div class="container mt-3">
+			<span class="dropdown">
+				<button class="btn btn-primary dropdown-toggle" type="button" id="sort" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sort</button>
+				<div class="dropdown-menu" aria-labelledby="sort">
+					<button class="dropdown-item" type="button" onclick="sort = 0; $('#sort')[0].innerHTML = this.innerHTML; updateRequests();">Net votes descending</button>
+					<button class="dropdown-item" type="button" onclick="sort = 1; $('#sort')[0].innerHTML = this.innerHTML; updateRequests();">Net votes ascending</button>
+					<button class="dropdown-item" type="button" onclick="sort = 2; $('#sort')[0].innerHTML = this.innerHTML; updateRequests();">Recent</button>
+					<button class="dropdown-item" type="button" onclick="sort = 3; $('#sort')[0].innerHTML = this.innerHTML; updateRequests();">Old</button>
+				</div>
+			</span>
+			<span class="dropdown ml-2">
+				<button class="btn btn-primary dropdown-toggle" type="button" id="filter" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Filter</button>
+				<div class="dropdown-menu" aria-labelledby="filter">
+					<button class="dropdown-item" type="button" onclick="filter = 0; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">All</button>
+					<button class="dropdown-item" type="button" style="background-color: #ffeeba" onclick="filter = 1; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Planned</button>
+					<button class="dropdown-item" type="button" style="background-color: #c3e6cb" onclick="filter = 2; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Implemented</button>
+					<button class="dropdown-item" type="button" style="background-color: #f5c6cb" onclick="filter = 3; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Rejected</button>
+					<button class="dropdown-item" type="button" style="background-color: #d6d8db" onclick="filter = 7; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Not applicable anymore</button>
+					<button class="dropdown-item" type="button" onclick="filter = 4; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Open</button>
+					<button class="dropdown-item" type="button" onclick="filter = 5; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Popular</button>
+					<button class="dropdown-item" type="button" onclick="filter = 6; $('#filter')[0].innerHTML = this.innerHTML; updateRequests();">Unpopular</button>
+				</div>
+			</span>
+		</div>
+
+		<div class="container" id="requestList"></div>
+
+		{% if admin %}
+		<script type="text/javascript">
+			function status(id, target) {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.responseText == "OK") {
+						updateRequests();
+						console.log("success");
+					} else if (this.responseText == "No.") {
+						console.log("error");
+					}
+				}
+				xhttp.open("GET", "/status?id="+id+"&target="+target, true);
+				xhttp.send();
+				console.log("updating status");
+			}
+			function remove(id) {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.responseText == "OK") {
+						updateRequests();
+						console.log("success");
+					} else if (this.responseText == "No.") {
+						console.log("error");
+					}
+				}
+				xhttp.open("GET", "/remove?id="+id, true);
+				xhttp.send();
+				console.log("removing");
+			}
+			function devresp(id, resp) {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.responseText == "OK") {
+						updateRequests();
+						console.log("success");
+					} else if (this.responseText == "No.") {
+						console.log("error");
+					}
+				}
+
+				data = new FormData
+				data.append("id", id)
+				data.append("devresp", resp)
+
+				xhttp.open("POST", "/devresp", true);
+				xhttp.send(data);
+				console.log("responding");
+			}
+		</script>
+		{% endif %}
+		{% if username is defined %}
+		<script type="text/javascript">
+			function flip(i) {
+				if (i) {return 0} else {return 1}
+			}
+
+			function vote(id, target, up) {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.responseText == "OK") {
+						updateRequests();
+						console.log("success");
+					} else if (this.responseText == "No.") {
+						console.log("error");
+					}
+				}
+				xhttp.open("GET", "/vote?id="+id+"&target="+flip(target)+"&up="+up, true);
+				xhttp.send();
+				console.log("voting");
+			}
+		</script>
+		{% else %}
+		<script type="text/javascript">
+			function vote(id, target, up) {
+				window.location.href = "/login";
+			}
+		</script>
+		{% endif %}
+
+		<script type="text/javascript">
+
+			var sort = 0;
+			var filter = 0;
+
+			function updateRequests() {
+
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.readyState == 4 && this.status == 200) {
+						document.getElementById("requestList").innerHTML = this.responseText;
+
+						$(function () {
+							$('[data-toggle="tooltip"]').tooltip();
+						})
+					}
+				};
+				xhttp.open("GET", "requests?sort="+sort+"&filter="+filter+"&request="+id, true);
+				xhttp.send();
+			}
+
+			function getParameterByName(name, url) {
+			    if (!url) url = window.location.href;
+			    name = name.replace(/[\[\]]/g, "\\$&");
+			    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+			        results = regex.exec(url);
+			    if (!results) return null;
+			    if (!results[2]) return '';
+			    return decodeURIComponent(results[2].replace(/\+/g, " "));
+			}
+
+			id = getParameterByName("request")
+
+			updateRequests();
+		</script>
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+	</body>
+</html>
