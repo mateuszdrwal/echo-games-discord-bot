@@ -23,6 +23,7 @@ planS  = ss.worksheet_by_title("Planned")
 stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
+pattern2 = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 commentpattern = re.compile("(\d{18})[^>].*?([^\s:-][\s\S]*)")
 
 conn = sqlite3.connect("requests.db")
@@ -219,7 +220,13 @@ async def updateRequest(message):
 async def analyzeMessage(message, force=False):
     results = re.findall(pattern, message.clean_content)
     comment = re.findall(commentpattern, message.content)
+    results2 = re.findall(pattern2, message.clean_content)
+    if results == [] and results2 != []:
+        results = results2
+        results = [(results2[0][1], results2[0][0], results2[0][2], results2[0][3])]
     
+    if message.author == client.user: results = []
+
     if comment != [] and message.author not in guild.members: return
     if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author == mateuszdrwal, message.author.roles) != None:
         comment = comment[0]
