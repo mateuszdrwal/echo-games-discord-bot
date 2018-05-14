@@ -222,7 +222,6 @@ async def analyzeMessage(message, force=False):
     comment = re.findall(commentpattern, message.content)
     results2 = re.findall(pattern2, message.clean_content)
     if results == [] and results2 != []:
-        results = results2
         results = [(results2[0][1], results2[0][0], results2[0][2], results2[0][3])]
     
     if message.author == client.user: results = []
@@ -372,6 +371,16 @@ async def on_message(message):
         await asyncio.sleep(5)
     if message.channel == requestChannel: await analyzeMessage(message)
 
+    if message.content == "!status":
+        string = "Echo games servers status:\n"
+        data = json.loads(await get("https://api.readyatdawn.com/status?projectid=rad14"))
+        for service in data:
+            if service["serviceid"] == "services": msg = service["message"]
+            if service["serviceid"] in ["services","news"]: continue
+            string += "%s %s: **%s**\n" % ((u"\N{WHITE HEAVY CHECK MARK}", service["serviceid"], "Online") if service["available"] else ("\u274c", service["serviceid"], "Offline"))
+        string += "message: **%s**" % msg
+        await message.channel.send(string)
+
 @client.event
 async def on_message_edit(before, message):
     if not client.is_ready():
@@ -451,7 +460,11 @@ async def cupTask(cupChannel, textInCup, link):
                 ids = f.readlines()
                 f.close()
 
-                ended = pairing["calculatedAt"]
+                try:
+                    ended = pairing["calculatedAt"]
+                except:
+                    print(pairing)
+                    raise Exception(pairing)
                 teams2 = [pairing["contestants"][0]["team"]["name"],pairing["contestants"][1]["team"]["name"]]
                 points = [pairing["result"]["score"].get(pairing["contestants"][0]["team"]["id"]),pairing["result"]["score"].get(pairing["contestants"][1]["team"]["id"])]
 
@@ -659,7 +672,7 @@ client.loop.create_task(client.start(secrets["discord token"]))
 
 
 
-redirect = "http://178.62.89.61/auth"
+redirect = "https://earequests.mateuszdrwal.com/auth"
 
 routes = web.RouteTableDef()
 app = web.Application(loop=client.loop)
@@ -680,7 +693,7 @@ async def requests(request):
     session = await get_session(request)
     try:
         assert "sort" in request.query and "filter" in request.query
-        assert 0 <= int(request.query["sort"]) < 4 and 0 <= int(request.query["filter"]) < 8
+        assert 0 <= int(request.query["sort"]) < 4 and 0 <= int(request.query["filter"]) < 9
     except AssertionError:
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
@@ -715,6 +728,8 @@ async def requests(request):
         filt = " AND up-down < 0"
     elif filt == 7:
         filt = " AND status = 4"
+    elif filt == 8:
+        filt = " AND devresp != \"\""
     
     if request.query.get("request","null") == "null":
         c.execute("SELECT * FROM requests WHERE disabled = 0%s ORDER BY %s"%(filt, sort))
@@ -755,7 +770,7 @@ async def requests(request):
 
 @routes.get("/login")
 async def login(request):
-    return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=http%3A%2F%2F178.62.89.61%2Fauth&response_type=code&scope=identify")
+    return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=https%3A%2F%2Fearequests.mateuszdrwal.com%2Fauth&response_type=code&scope=identify")
 
 @routes.get("/auth")
 async def auth(request):
@@ -936,4 +951,4 @@ async def status(request):
 app.router.add_static("/static","static")
 setup(app, EncryptedCookieStorage(open("cookiekey", "rb").readline()))
 app.add_routes(routes)
-web.run_app(app,port=80)
+web.run_app(app,port=50001)
