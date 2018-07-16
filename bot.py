@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3, threading, aiohttp_jinja2, jinja2, logging
+import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3, threading, aiohttp_jinja2, jinja2, logging, os, random, base64, html
 from oauth2client.service_account import ServiceAccountCredentials
 from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -24,7 +24,8 @@ stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 pattern2 = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
-commentpattern = re.compile("(\d{18})[^>].*?([^\s:-][\s\S]*)")
+commentpattern = re.compile(r"^(\d{18})[^>].*?([^\s:-][\s\S]*)")
+profilepattern = re.compile(r"esl.*\/(\d+)")
 
 conn = sqlite3.connect("requests.db")
 c = conn.cursor()
@@ -40,6 +41,10 @@ fh.setLevel(logging.DEBUG)
 fh.setFormatter(f)
 logger.addHandler(ch)
 logger.addHandler(fh)
+
+encoder = json.JSONEncoder()
+
+verifying = []
 
 async def perm(reaction):
     global guild
@@ -111,6 +116,9 @@ async def updateSheet():
     cells[-1].value = "Last updated at: %s"%datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     stats.update_cells(cell_list=cells)
 
+class fakemember:
+    pass
+
 async def updateRequest(message):
     upvotes = 0
     downvotes = 0
@@ -128,7 +136,15 @@ async def updateRequest(message):
         lastStatus = fetched[0][8]
     except Exception as e:
         logger.debug(message)
+        logger.debug(message.content)
         raise e
+
+    if len(message.mentions) == 0:
+        member = fakemember()
+        member.id = fetched[0][10]
+        member.name = "".join(fetched[0][1].split("#")[:-1])
+        member.discriminator = int(fetched[0][1].split("#")[-1])
+        message.mentions.append(member)
     
     for reaction in message.reactions:
         if reaction.emoji == "\u26d4":
@@ -151,7 +167,7 @@ async def updateRequest(message):
             async for user in reaction.users():
 
                 if reaction.message.author.bot:
-                    if reaction.message.mentions[0] == user:
+                    if reaction.message.mentions[0].id == user.id:
                         continue
                 else:
                     if reaction.message.author == user:
@@ -175,7 +191,7 @@ async def updateRequest(message):
         elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
             async for user in reaction.users():
                 if reaction.message.author.bot:
-                    if reaction.message.mentions[0] == user:
+                    if reaction.message.mentions[0].id == user.id:
                         continue
                 else:
                     if reaction.message.author == user:
@@ -213,7 +229,20 @@ async def updateRequest(message):
         devresp.append(str(jinja2.escape("%s:\n%s"%(response[3],response[2]))).replace("\n","<br/>"))
     devresp = "<br/><br/>".join(devresp)
 
-    c.execute("UPDATE requests SET up = :up, down = :down, status = :status, devresp = :devresp WHERE mid = :mid", {"mid": message.id, "up": upvotes, "down": downvotes, "status": status if not webStatus else lastStatus, "devresp": devresp, "author": "%s#%s"%(message.author.name, message.author.discriminator) if not message.author.bot else "%s#%s"%(message.mentions[0].name, message.mentions[0].discriminator)})
+    # c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
+    # fetched = c.fetchall()
+    # text = {}
+    # for name, index in [("title", 3), ("category", 4), ("description", 5), ("sugType", 2)]:
+    #     text[name] = html.escape(html.unescape(fetched[0][index]))
+
+    c.execute("UPDATE requests SET up = :up, down = :down, status = :status, devresp = :devresp WHERE mid = :mid", 
+        {"mid": message.id,
+        "up": upvotes,
+        "down": downvotes,
+        "status": status if not webStatus else lastStatus,
+        "devresp": devresp,
+        "author": "%s#%s"%(message.author.name, message.author.discriminator) if not message.author.bot else "%s#%s"%(message.mentions[0].name, message.mentions[0].discriminator)
+        })
     
     conn.commit()
 
@@ -247,7 +276,7 @@ async def analyzeMessage(message, force=False):
         return
         
     if results == [] or message.id == 403337281068466197:
-        if force:
+        if (force or message.author == client.user) and message.id not in [466682006718251039]:
             await updateRequest(message)
         return
     
@@ -263,10 +292,10 @@ async def analyzeMessage(message, force=False):
         up = 0,
         down = 0
         WHERE mid = :mid""", {
-            "sugType": results[0][0],
-            "title": results[0][1],
-            "category": results[0][2],
-            "description": results[0][3],
+            "sugType": html.escape(results[0][0]),
+            "title": html.escape(results[0][1]),
+            "category": html.escape(results[0][2]),
+            "description": html.escape(results[0][3]),
             "mid": message.id
             })
     else:
@@ -287,11 +316,11 @@ async def analyzeMessage(message, force=False):
         0
         )""", {
             "time": message.created_at.timestamp(),
-            "author": "%s#%s"%(message.author.name, message.author.discriminator),
-            "sugType": results[0][0],
-            "title": results[0][1],
-            "category": results[0][2],
-            "description": results[0][3],
+            "author": html.escape("%s#%s"%(message.author.name, message.author.discriminator)),
+            "sugType": html.escape(results[0][0]),
+            "title": html.escape(results[0][1]),
+            "category": html.escape(results[0][2]),
+            "description": html.escape(results[0][3]),
             "mid": message.id,
             "uid": message.author.id
             })
@@ -319,6 +348,11 @@ async def loop():
                 try:
                     message = await requestChannel.get_message(request[9])
                 except discord.NotFound:
+                    c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": request[9]})
+                    c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": request[9]})
+                    c.execute("DELETE FROM responses WHERE mid = :mid", {"mid": request[9]})
+                    conn.commit()
+                    logger.info("removed request %s"%request[3])
                     continue
                 await analyzeMessage(message, True)
 
@@ -366,20 +400,62 @@ async def on_reaction_clear(message, reactions):
 
 @client.event
 async def on_message(message):
+
+    if message.author == client.user: return
+
     if not client.is_ready():
         await client.wait_until_ready()
         await asyncio.sleep(5)
     if message.channel == requestChannel: await analyzeMessage(message)
 
-    if message.content == "!status":
-        string = "Echo games servers status:\n"
-        data = json.loads(await get("https://api.readyatdawn.com/status?projectid=rad14"))
-        for service in data:
-            if service["serviceid"] == "services": msg = service["message"]
-            if service["serviceid"] in ["services","news"]: continue
-            string += "%s %s: **%s**\n" % ((u"\N{WHITE HEAVY CHECK MARK}", service["serviceid"], "Online") if service["available"] else ("\u274c", service["serviceid"], "Offline"))
-        string += "message: **%s**" % msg
-        await message.channel.send(string)
+    # if message.content == "!status":
+    #     string = "Echo games servers status:\n"
+    #     data = json.loads(await get("https://api.readyatdawn.com/status?projectid=rad14"))
+    #     for service in data:
+    #         if service["serviceid"] == "services": msg = service["message"]
+    #         if service["serviceid"] in ["services","news"]: continue
+    #         string += "%s %s: **%s**\n" % ((u"\N{WHITE HEAVY CHECK MARK}", service["serviceid"], "Online") if service["available"] else ("\u274c", service["serviceid"], "Offline"))
+    #     string += "message: **%s**" % msg
+    #     await message.channel.send(string)
+
+    if message.content == "!verifyesl":
+        if message.author.dm_channel == None: await message.author.create_dm()
+        await message.author.dm_channel.send("Please send a link to your ESL profile here to continue verificaton")
+        await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+
+    id = re.findall(profilepattern, message.content)
+    if len(id) > 0 and isinstance(message.channel, discord.DMChannel) and message.author.id not in verifying:
+        verifying.append(message.author.id)
+        id = id[0]
+        if message.author.dm_channel == None: await message.author.create_dm()
+        code = base64.b64encode(random.getrandbits(96).to_bytes(12, "big")).decode()
+        await message.author.dm_channel.send("To finish verifying go to your profile (https://play.eslgaming.com/player/edit/%s/) and add the folowing text to your short description (not the long one!) temporarly: ```%s```Do this within the next 10 minutes. I will be checking for updates in the background and notify you when you are verified. If you have any issues, contact mateuszdrwal#9960."%(id, code))
+        logger.info("%s verifying..."%message.author.display_name)
+
+        try:
+            async with async_timeout.timeout(600):
+                while True:
+                    data = await get("https://play.eslgaming.com/player/%s/"%id)
+                    if code in data: break #not the most secure, but who cares. no idea why im forcing verification anyways
+                    time.sleep(10)
+        except asyncio.TimeoutError:
+            if message.author.dm_channel == None: await message.author.create_dm()
+            await message.author.dm_channel.send("The time has expired. If you want to verify again, please resend your profile link in this chat.")
+            logger.info("failed verifying %s"%message.author.display_name)
+            verifying.remove(message.author.id)
+            return
+
+        c.execute("DELETE FROM esl WHERE uid = :uid", {"uid": message.author.id})
+        c.execute("INSERT INTO esl VALUES (:uid, :eid)", {"uid": message.author.id, "eid": id})
+        conn.commit()
+        if message.author.dm_channel == None: await message.author.create_dm()
+        await message.author.dm_channel.send("Your ESL account has been successfully verified. You can now remove the text from your short description. If you ever want to unverify, do `!unverifyesl`")
+        logger.info("verifying %s successful"%message.author.display_name)
+        verifying.remove(message.author.id)
+
+    if message.content == "!unverifyesl":
+        c.execute("DELETE FROM esl WHERE uid = :uid", {"uid": message.author.id})
+        await message.author.dm_channel.send("Your discord account is no longer linked to your ESL account.")
 
 @client.event
 async def on_message_edit(before, message):
@@ -388,7 +464,7 @@ async def on_message_edit(before, message):
         await asyncio.sleep(5)
     if message.channel == requestChannel: await analyzeMessage(message)
 
-async def cupTask(cupChannel, textInCup, link):
+async def cupTask(cupChannel, filesuffix, link):
     if not client.is_ready():
         await client.wait_until_ready()
         await asyncio.sleep(5)
@@ -398,14 +474,13 @@ async def cupTask(cupChannel, textInCup, link):
 
     while True:
 
+        #getting cups
         cups = []
         raw = await eslApi(link.format("inProgress,upcoming"))
         for cup in raw.values():
-            if textInCup not in cup["name"]["full"].lower():
-                continue
-            cups.append([datetime.datetime.strptime(cup["timeline"]["inProgress"]["begin"].replace(":",""), "%Y-%m-%dT%H%M%S%z").timestamp(),
-                         cup["id"]
-                         ])
+            cuptime = datetime.datetime.strptime(cup["timeline"]["inProgress"]["begin"].replace(":",""), "%Y-%m-%dT%H%M%S%z").timestamp()
+            if ("registration" in cup["name"]["full"].lower() or "stage" in cup["name"]["full"].lower() or cuptime-time.time() < 0) and not ("summer" in cup["name"]["full"].lower()):
+                cups.append([cuptime, cup["id"]])
         
         if len(cups) == 0:
             await asyncio.sleep(3600)
@@ -414,11 +489,12 @@ async def cupTask(cupChannel, textInCup, link):
         cups.sort()
         cup = cups[0]
 
-        waitTime = cup[0]-time.time()
+        waitTime = cup[0]-time.time()#testing
         if waitTime > 0:
             logger.info("waiting %s"%waitTime)
-            await asyncio.sleep(waitTime)
+            await asyncio.sleep(waitTime) #waiting for cup
 
+            #initial cup message
             raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
 
             teamList = []
@@ -430,51 +506,83 @@ async def cupTask(cupChannel, textInCup, link):
                             
             await cupChannel.send("The weekly cup has begun! Good luck to everyone participating!")
             await cupChannel.send("Here are the seeds participating today:\n\n%s"%"\n".join(["**%s. %s**\n    *%s*"%(i+1, name[1], name[2]) for i, name in enumerate(teamList)]))
+            await cupChannel.send("If you want to get private messages everytime the next round starts/you have a new match to play, go to <#328962843800109067> and type `!verifyesl`")
 
         raw = await eslApi("/play/v1/leagues/%s/contestants"%cup[1])
 
         pixlim = 384
 
-        try:
-            open("tempFile"+textInCup, "r").close()
-        except FileNotFoundError:
-            open("tempFile"+textInCup,"w").close()
+        allcups = [cup[1]]#testing
 
-        allcups = [cup[1]]
 
-        while True:
-            await asyncio.sleep(60)
+        while True: #cup loop
             cups2 = await eslApi(link.format("inProgress"))
 
             pairings = []
             for cup2 in cups2.values():
-                if textInCup not in cup2["name"]["full"].lower():
+                if "cup" not in cup2["name"]["full"].lower():
                     continue
-                if cup2["id"] not in allcups: allcups.append(cup2["id"])
+                if cup2["id"] not in allcups and "summer" not in cup2["name"]["full"].lower(): allcups.append(cup2["id"])
 
             for cup2 in allcups + [cup[1]]:
                 pairings += await eslApi("/play/v1/leagues/%s/matches"%cup2)
+            #pairings += await eslApi("/play/v1/matches") #testing
 
-            for pairing in pairings:
-                f = open("tempFile"+textInCup,"r")
-                ids = f.readlines()
-                f.close()
+            if "error" in pairings:
+                continue
 
-                try:
-                    ended = pairing["calculatedAt"]
-                except:
-                    print(pairing)
-                    raise Exception(pairing)
+            for pairing in pairings: #looping through every match in every cup
+                c.execute("SELECT * FROM matches")
+                ids = c.fetchall()
+                c.execute("SELECT * FROM openmatches")
+                oids = c.fetchall()
+
+                ended = pairing["calculatedAt"]
+
                 teams2 = [pairing["contestants"][0]["team"]["name"],pairing["contestants"][1]["team"]["name"]]
                 points = [pairing["result"]["score"].get(pairing["contestants"][0]["team"]["id"]),pairing["result"]["score"].get(pairing["contestants"][1]["team"]["id"])]
 
-                if pairing["status"] != "closed" or str(pairing["id"])+"\n" in ids:
+                if (pairing["id"],) not in oids:#and (pairing["id"],) not in ids: # match notifications
+                    teamids = [pairing["contestants"][0]["team"]["id"],pairing["contestants"][1]["team"]["id"]]
+                    
+                    for i, team in enumerate(teamids):
+
+                        if team == None: continue
+                        members = await eslApi("/play/v1/teams/%s/members"%team)
+
+                        for member in members:
+                            c.execute("SELECT * FROM esl WHERE eid = :eid", {"eid": member})
+                            user = c.fetchall()
+                            if len(user) == 0: continue
+                            user = user[0]
+                            member = guild.get_member(user[0])
+                            if member == None: continue
+                            if member.dm_channel == None: await member.create_dm()
+
+                            if (points[0] == None or points[1] == None) and ended == None: # if its a bye
+                                if pairing["status"] == "closed":
+                                    await member.dm_channel.send("Take a rest. You recieved a bye in the next round of the cup.")
+                                    logger.debug("sent bye message")
+                                    c.execute("INSERT INTO openmatches VALUES (:id)", {"id": pairing["id"]})
+                                    conn.commit()
+                                continue
+
+
+                            if pairing["status"] == "open":
+                                opponentmembers = await eslApi("/play/v1/teams/%s/members"%teamids[-1+i])
+                                await member.dm_channel.send("Next round has started. Wild **%s** appeared!\nMembers: *%s*"%(teams2[-1+i], ", ".join([player["user"]["nickname"] for player in opponentmembers.values() if player["membership"]["role"] != "inactive"])))
+                                logger.debug("sent round message")
+                                c.execute("INSERT INTO openmatches VALUES (:id)", {"id": pairing["id"]})
+                                conn.commit()
+
+
+                if pairing["status"] != "closed" or (pairing["id"],) in ids:
                     continue
 
                 if points[0] == None or points[1] == None or ended == None:
-                    f = open("tempFile"+textInCup,"a")
-                    f.write(str(pairing["id"])+"\n")
-                    f.close()
+
+                    c.execute("INSERT INTO matches VALUES (:id)", {"id": pairing["id"]})
+                    conn.commit()
                     continue
 
                 #draw image
@@ -536,21 +644,19 @@ async def cupTask(cupChannel, textInCup, link):
                         os.remove("match.png")
                         img.save("match.png")
 
-                f = open("tempFile"+textInCup,"a")
-                f.write(str(pairing["id"])+"\n")
-                f.close()
+                c.execute("INSERT INTO matches VALUES (:id)", {"id": pairing["id"]})
+                conn.commit()
 
-            f = open("tempFile"+textInCup,"r")
-            ids = f.readlines()
-            f.close()
+            c.execute("SELECT * FROM matches")
+            ids = c.fetchall()
+
             for pairing in pairings:
-                if str(pairing["id"])+"\n" not in ids:
+                if (pairing["id"],) not in ids:
                     break
             else:
-                if time.time() - cup[0] > 7200 and await eslApi("/play/v1/leagues?types=&states=inProgress&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0") == {}:
+                if time.time() - cup[0] > 3600 and await eslApi(link.format("inProgress")) == {}:
                     break
 
-        Popen(["rm","tempFile"+textInCup])
         await cupChannel.send("The cup has now ended! Good job everyone!")
 
         results = []
@@ -571,7 +677,11 @@ async def cupTask(cupChannel, textInCup, link):
         await asyncio.sleep(3600*12)
 
 async def eslApi(path):
-    raw = await get("https://api.eslgaming.com"+path)
+    if False and ("matches" in path or "leagues?" in path): #testing
+        raw = await get("https://eslmock.mateuszdrwal.com"+path)
+    else:
+        raw = await get("https://api.eslgaming.com"+path)
+
     return json.loads(raw)
 
 async def get(url, headers=None):
@@ -632,8 +742,10 @@ async def on_ready():
     guild = client.get_guild(326412222119149578)
 
     await client.change_presence(activity=discord.Activity(name='Echo Combat',type=discord.ActivityType.streaming))
+    #await client.get_channel(326412418492268545).send(":thinking:")
 
     logger.info("discord.py initialized")
+    #await requestChannel.send("i identify as an Apache attack helicopter")
 
 async def errorCatcher(task):
     global errorChannel, mateuszdrwal
@@ -660,19 +772,16 @@ async def startup():
 
 
 client.loop.create_task(startup())
-client.loop.create_task(loop())
+client.loop.create_task(errorCatcher(loop()))
 client.loop.create_task(backup())
-client.loop.create_task(errorCatcher(cupTask(
-                                             377230334288330753
-                                             #390482469469552643
-                                             ,"cup","/play/v1/leagues?types=&states={}&skill_levels=&limit.total=8&path=%2Fplay%2Fechoarena%2Feurope%2F&portals=&tags=vrclechoarena-eu-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(350354518502014976,"week","/play/v1/leagues?types=&states=inProgress,upcoming&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrclechoarena-na-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
+#client.loop.create_task(errorCatcher(cupTask(390482469469552643,"TEST","/play/v1/leagues?states={}"))) #testing
 client.loop.create_task(client.start(secrets["discord token"]))
 
 
 
 
-redirect = "https://earequests.mateuszdrwal.com/auth"
 
 routes = web.RouteTableDef()
 app = web.Application(loop=client.loop)
@@ -685,58 +794,34 @@ def who(session, request):
 @aiohttp_jinja2.template("home.html")
 async def home(request):
     session = await get_session(request)
-    return {"error": request.query.get("error", None), "success": request.query.get("success", None), **session}
 
-@routes.get("/requests")
-@aiohttp_jinja2.template("requests.html")
-async def requests(request):
+    desc = "The feature requests website for the VR multiplayer game Echo Arena. Submit your own feature requests here!"
+    author = ""
+    title = "Echo Arena Feature Requests"
+
+    if request.query.get("request","null") != "null":
+        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["request"]})
+        fetched = c.fetchall()
+        if len(fetched) != 0:
+            desc = fetched[0][5]
+            author = fetched[0][1]
+            title = fetched[0][3] + " | Echo Arena Feature Request"
+
+    if "username" not in session and request.query.get("r", None) != None and "Discordbot" not in request.headers.get("user-agent"): return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=https%3A%2F%2Fearequests.mateuszdrwal.com%2Fauth%3Fr%3D1&response_type=code&scope=identify")
+
+    return {"error": request.query.get("error", None), "success": request.query.get("success", None), "desc": desc, "author": author, "title": title, "submit": request.query.get("r", None), **session}
+
+@routes.get("/api/requests")
+async def rawrequests(request):
     session = await get_session(request)
-    try:
-        assert "sort" in request.query and "filter" in request.query
-        assert 0 <= int(request.query["sort"]) < 4 and 0 <= int(request.query["filter"]) < 9
-    except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
-    except ValueError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
 
-    sort = int(request.query["sort"])
-    if sort == 0:
-        sort = "up-down DESC"
-    elif sort == 1:
-        sort = "up-down ASC"
-    elif sort == 2:
-        sort = "created DESC"
-    elif sort == 3:
-        sort = "created ASC"
-
-    filt = int(request.query["filter"])
-    if filt == 0:
-        filt = ""
-    elif filt == 1:
-        filt = " AND status = 1"
-    elif filt == 2:
-        filt = " AND status = 3"
-    elif filt == 3:
-        filt = " AND status = 2"
-    elif filt == 4:
-        filt = " AND status = 0"
-    elif filt == 5:
-        filt = " AND up-down > 0"
-    elif filt == 6:
-        filt = " AND up-down < 0"
-    elif filt == 7:
-        filt = " AND status = 4"
-    elif filt == 8:
-        filt = " AND devresp != \"\""
-    
     if request.query.get("request","null") == "null":
-        c.execute("SELECT * FROM requests WHERE disabled = 0%s ORDER BY %s"%(filt, sort))
+        c.execute("SELECT * FROM requests WHERE disabled = 0")
     else:
         c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["request"]})
+
     fetched = c.fetchall()
-    
+
     requests = {request[9]: {"date": datetime.date.fromtimestamp(request[0]).isoformat(),
                              "time": datetime.datetime.fromtimestamp(request[0]).isoformat(),
                              "author": request[1],
@@ -748,14 +833,13 @@ async def requests(request):
                              "down": request[7],
                              "status": ["Open","Planned","Rejected","Implemented","Not applicable anymore"][request[8]],
                              "statusCode": request[8],
-                             "mid": request[9],
-                             "uid": request[10],
-                             "vote": {},
+                             "mid": str(request[9]),
+                             "vote": {"up": 0, "down": 0, "upDiscord": 0, "downDiscord": 0},
                              "devresp": request[11],
-                             "self": int(request[10]) == int(session.get("id",0))
+                             "self": int(request[10]) == int(session.get("id",0)),
+                             "timestamp": request[0]
                              } for request in fetched}
-    
-    votes = []
+
     if "username" in session:
         c.execute("SELECT * FROM votes WHERE uid = :uid", {"uid": session["id"]})
         fetched = c.fetchall()
@@ -766,7 +850,7 @@ async def requests(request):
             requests[vote[0]]["vote"]["upDiscord"] = vote[4]
             requests[vote[0]]["vote"]["downDiscord"] = vote[5]
 
-    return {"requests":[request for request in requests.values()], "admin": session.get("admin", False)}
+    return web.Response(text=encoder.encode(requests))
 
 @routes.get("/login")
 async def login(request):
@@ -777,6 +861,10 @@ async def auth(request):
     try:
         if "code" not in request.query:
             return web.HTTPFound("/")
+
+        redirect = "https://earequests.mateuszdrwal.com/auth"
+        if request.query.get("r") != None: redirect += "?r=1"
+
         data = {
             'client_id': secrets["client id"],
             'client_secret': secrets["client secret"],
@@ -803,7 +891,7 @@ async def auth(request):
         else:
             session["admin"] = False
             logger.info("%s logged in"%response["username"])
-        return web.HTTPFound("/")
+        return web.HTTPFound("/") if request.query.get("r") == None else web.HTTPFound("/?r=1")
     except AssertionError:
         logger.warn("error when logging in %s. queries: %s discord api response: %s"%(request.remote, request.query, response))
         return web.HTTPFound("/?error=An+error+has+occurred+while+trying+to+log+in.+Please+try+again.+If+the+issue+persists+please+PM+me%2C+mateuszdrwal%239960")
@@ -818,7 +906,7 @@ async def logout(request):
     session.invalidate()
     return web.HTTPFound("/")
 
-@routes.get("/vote")
+@routes.post("/api/vote")
 async def vote(request):
     try:
         session = await get_session(request)
@@ -858,7 +946,7 @@ async def vote(request):
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
 
-@routes.post("/newrequest")
+@routes.post("/api/newrequest")
 async def newrequest(request):
     data = await request.post()
     session = await get_session(request)
@@ -873,12 +961,13 @@ async def newrequest(request):
     
     user = client.get_user(int(session["id"]))
     message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**What kind of submission is this?**: %s\n**Category**: %s\n**Description**: %s"%(user.mention, data["title"], data["type"], data["category"], data["description"]))
-    c.execute("INSERT INTO requests VALUES (:created, :author, :type, :title, :category, :description, 0, 0, 0, :mid, :uid, '', 0, 0)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "type": data["type"], "title": data["title"], "category": data["category"], "description": data["description"], "mid": message.id, "uid": user.id})
+    c.execute("INSERT INTO requests VALUES (:created, :author, :type, :title, :category, :description, 0, 0, 0, :mid, :uid, '', 0, 0)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "type": html.escape(data["type"]), "title": html.escape(data["title"]), "category": html.escape(data["category"]), "description": html.escape(data["description"]), "mid": message.id, "uid": user.id})
     conn.commit()
+    analyzeMessage(message)
     logger.info("%s created a request titled \"%s\""%(session["username"], data["title"]))
     return web.HTTPFound("/?success=Request%20created%21")
 
-@routes.post("/devresp")
+@routes.post("/api/devresp")
 async def devresp(request):
     data = await request.post()
     session = await get_session(request)
@@ -904,7 +993,7 @@ async def devresp(request):
     logger.info("%s responded to %s"%(session["username"], data["id"]))
     return web.Response(text="OK")
 
-@routes.get("/remove")
+@routes.post("/api/remove")
 async def remove(request):
     session = await get_session(request)
     try:
@@ -925,7 +1014,7 @@ async def remove(request):
     logger.info("%s removed %s"%(session["username"], request.query["id"]))
     return web.Response(text="OK")
 
-@routes.get("/status")
+@routes.post("/api/status")
 async def status(request):
     session = await get_session(request)
     try:
@@ -947,6 +1036,16 @@ async def status(request):
     conn.commit()
     logger.info("%s updated status of %s to %s"%(session["username"], request.query["id"], ["Open","Planned","Rejected","Implemented","Not applicable anymore"][int(request.query["target"])]))
     return web.Response(text="OK")
+
+@routes.get("/robots.txt")
+async def robots(request):
+    return web.Response(text="""
+User-agent: *
+Disallow: /api/
+Disallow: /login
+Disallow: /logout
+Disallow: /auth
+""")
 
 app.router.add_static("/static","static")
 setup(app, EncryptedCookieStorage(open("cookiekey", "rb").readline()))
