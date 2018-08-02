@@ -14,7 +14,7 @@ with open("secrets","r") as f:
 
 gs = pygsheets.authorize(service_file="key.json")
 
-ss = gs.open("Echo Arena Feature Requests")
+ss = gs.open("Echo VR Feature Requests")
 allS = ss.worksheet_by_title("All")
 openS  = ss.worksheet_by_title("Open")
 rejS  = ss.worksheet_by_title("Rejected")
@@ -24,6 +24,7 @@ stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 pattern2 = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
+newpattern = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Game mode[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 commentpattern = re.compile(r"^(\d{18})[^>].*?([^\s:-][\s\S]*)")
 profilepattern = re.compile(r"esl.*\/(\d+)")
 
@@ -84,9 +85,8 @@ async def updateSheet():
 
             newVals.append([datetime.datetime.fromtimestamp(entry[0]).strftime("%Y-%m-%d %H:%M:%S UTC"),
                             entry[1],
-                            entry[2],
                             entry[3],
-                            entry[4],
+                            {"ea": "Echo Arena", "ec": "Echo Combat", "n/a":"Not Applicable"}.get(entry[14]),
                             entry[5],
                             entry[6]-entry[7],
                             entry[6],
@@ -101,7 +101,7 @@ async def updateSheet():
         
         newVals.sort(key=lambda r: int(r[6]))
         newVals.reverse()
-        newVals.insert(0, ["Time Submitted","Member","Suggestion Type","Title","Category","Description","Points","Upvotes","Downvotes","Status","Developer Response","Message ID","Member ID"])
+        newVals.insert(0, ["Time Submitted","Member","Title","Mode","Description","Points","Upvotes","Downvotes","Status","Developer Response","Message ID","Member ID"])
 
         cells = []
         for i, row in enumerate(newVals):
@@ -246,14 +246,13 @@ async def updateRequest(message):
     
     conn.commit()
 
-async def analyzeMessage(message, force=False):
+async def analyzeMessage(message, force=False, new=False):
     results = re.findall(pattern, message.clean_content)
     comment = re.findall(commentpattern, message.content)
     results2 = re.findall(pattern2, message.clean_content)
+    newpatternResults = re.findall(newpattern, message.clean_content)
     if results == [] and results2 != []:
         results = [(results2[0][1], results2[0][0], results2[0][2], results2[0][3])]
-    
-    if message.author == client.user: results = []
 
     if comment != [] and message.author not in guild.members: return
     if comment != [] and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or message.author == mateuszdrwal, message.author.roles) != None:
@@ -275,56 +274,82 @@ async def analyzeMessage(message, force=False):
             await updateRequest(await requestChannel.get_message(id))
         return
         
-    if results == [] or message.id == 403337281068466197:
-        if (force or message.author == client.user) and message.id not in [466682006718251039]:
-            await updateRequest(message)
+    if (force or (message.author == client.user and (results != [] or newpatternResults != []))) and message.id not in [466682006718251039]:
+        await updateRequest(message)
+        return
+
+    if (results == [] and newpatternResults == []) or message.id == 403337281068466197:
         return
     
-
     c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
     fetched = c.fetchall()
-    if fetched != []:
-        c.execute("""UPDATE requests SET
-        sugType = :sugType,
-        title = :title,
-        category = :category,
-        description = :description,
-        up = 0,
-        down = 0
-        WHERE mid = :mid""", {
-            "sugType": html.escape(results[0][0]),
-            "title": html.escape(results[0][1]),
-            "category": html.escape(results[0][2]),
-            "description": html.escape(results[0][3]),
-            "mid": message.id
-            })
+    if results != []:
+        if fetched != []:
+            c.execute("""UPDATE requests SET
+            sugType = :sugType,
+            title = :title,
+            category = :category,
+            description = :description,
+            up = 0,
+            down = 0
+            WHERE mid = :mid""", {
+                "sugType": html.escape(results[0][0]),
+                "title": html.escape(results[0][1]),
+                "category": html.escape(results[0][2]),
+                "description": html.escape(results[0][3]),
+                "mid": message.id
+                })
+        else:
+            return
+
     else:
-        c.execute("""INSERT INTO requests VALUES (
-        :time,
-        :author,
-        :sugType,
-        :title,
-        :category,
-        :description,
-        0,
-        0,
-        0,
-        :mid,
-        :uid,
-        "",
-        0,
-        0
-        )""", {
-            "time": message.created_at.timestamp(),
-            "author": html.escape("%s#%s"%(message.author.name, message.author.discriminator)),
-            "sugType": html.escape(results[0][0]),
-            "title": html.escape(results[0][1]),
-            "category": html.escape(results[0][2]),
-            "description": html.escape(results[0][3]),
-            "mid": message.id,
-            "uid": message.author.id
-            })
-        logger.info("new suggestion: %s"%results[0][1])
+
+        if newpatternResults[0][1].lower() not in ["ea","ec","n/a"]:
+            if new:
+                await requestChannel.send(u"That mode is incorrect. please edit your message to make sure that the mode is either \"ea\" (for Echo Arena), \"ec\" (for Echo Combat) or \"n/a\" (for Not Applicable). You know it worked when i react with \N{WHITE HEAVY CHECK MARK}")
+            return
+
+        if fetched != []:
+            c.execute("""UPDATE requests SET
+            title = :title,
+            mode = :mode,
+            description = :description,
+            up = 0,
+            down = 0
+            WHERE mid = :mid""", {
+                "title": html.escape(newpatternResults[0][0]),
+                "mode": html.escape(newpatternResults[0][1].lower()),
+                "description": html.escape(newpatternResults[0][2]),
+                "mid": message.id
+                })
+        else:
+            c.execute("""INSERT INTO requests VALUES (
+            :time,
+            :author,
+            "",
+            :title,
+            "",
+            :description,
+            0,
+            0,
+            0,
+            :mid,
+            :uid,
+            "",
+            0,
+            0,
+            :mode
+            )""", {
+                "time": message.created_at.timestamp(),
+                "author": html.escape("%s#%s"%(message.author.name, message.author.discriminator)),
+                "title": html.escape(newpatternResults[0][0]),
+                "mode": html.escape(newpatternResults[0][1].lower()),
+                "description": html.escape(newpatternResults[0][2]),
+                "mid": message.id,
+                "uid": message.author.id
+                })
+            logger.info("new suggestion: %s"%newpatternResults[0][0])
+            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
 
     conn.commit()
 
@@ -341,29 +366,28 @@ async def loop():
     logger.info("initial update done")
     
     while True:
+
+        c.execute("SELECT * FROM requests")
+        for request in c.fetchall():
+            try:
+                message = await requestChannel.get_message(request[9])
+            except discord.NotFound:
+                c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": request[9]})
+                c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": request[9]})
+                c.execute("DELETE FROM responses WHERE mid = :mid", {"mid": request[9]})
+                conn.commit()
+                logger.info("removed request %s"%request[3])
+                continue
+            await analyzeMessage(message, True)
+
         try:
-
-            c.execute("SELECT * FROM requests")
-            for request in c.fetchall():
-                try:
-                    message = await requestChannel.get_message(request[9])
-                except discord.NotFound:
-                    c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": request[9]})
-                    c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": request[9]})
-                    c.execute("DELETE FROM responses WHERE mid = :mid", {"mid": request[9]})
-                    conn.commit()
-                    logger.info("removed request %s"%request[3])
-                    continue
-                await analyzeMessage(message, True)
-
             await updateSheet()
             await asyncio.sleep(600)
-
         except Exception as error:
             logger.debug(error)
             gs = pygsheets.authorize(service_file="key.json")
 
-            ss = gs.open("Echo Arena Feature Requests")
+            ss = gs.open("Echo VR Feature Requests")
             allS = ss.worksheet_by_title("All")
             openS  = ss.worksheet_by_title("Open")
             rejS  = ss.worksheet_by_title("Rejected")
@@ -406,7 +430,7 @@ async def on_message(message):
     if not client.is_ready():
         await client.wait_until_ready()
         await asyncio.sleep(5)
-    if message.channel == requestChannel: await analyzeMessage(message)
+    if message.channel == requestChannel: await analyzeMessage(message, new=True)
 
     # if message.content == "!status":
     #     string = "Echo games servers status:\n"
@@ -542,7 +566,7 @@ async def cupTask(cupChannel, filesuffix, link):
                 teams2 = [pairing["contestants"][0]["team"]["name"],pairing["contestants"][1]["team"]["name"]]
                 points = [pairing["result"]["score"].get(pairing["contestants"][0]["team"]["id"]),pairing["result"]["score"].get(pairing["contestants"][1]["team"]["id"])]
 
-                if (pairing["id"],) not in oids:#and (pairing["id"],) not in ids: # match notifications
+                if (pairing["id"],) not in oids:# match notifications
                     teamids = [pairing["contestants"][0]["team"]["id"],pairing["contestants"][1]["team"]["id"]]
                     
                     for i, team in enumerate(teamids):
@@ -550,7 +574,8 @@ async def cupTask(cupChannel, filesuffix, link):
                         if team == None: continue
                         members = await eslApi("/play/v1/teams/%s/members"%team)
 
-                        for member in members:
+                        for member, eslmember in members.items():
+                            if eslmember["membership"]["role"] == "inactive": continue
                             c.execute("SELECT * FROM esl WHERE eid = :eid", {"eid": member})
                             user = c.fetchall()
                             if len(user) == 0: continue
@@ -735,17 +760,13 @@ async def on_ready():
     logger.debug(client.user.id)
 
     requestChannel = client.get_channel(403335187062194188)
-    matpmChannel = client.get_channel(412554371923050496)
     errorChannel = client.get_channel(424701844942618634)
-
     mateuszdrwal = client.get_user(140504440930041856)
     guild = client.get_guild(326412222119149578)
 
     await client.change_presence(activity=discord.Activity(name='Echo Combat',type=discord.ActivityType.streaming))
-    #await client.get_channel(326412418492268545).send(":thinking:")
 
     logger.info("discord.py initialized")
-    #await requestChannel.send("i identify as an Apache attack helicopter")
 
 async def errorCatcher(task):
     global errorChannel, mateuszdrwal
@@ -795,21 +816,31 @@ def who(session, request):
 async def home(request):
     session = await get_session(request)
 
-    desc = "The feature requests website for the VR multiplayer game Echo Arena. Submit your own feature requests here!"
+    desc = "The feature requests website for the VR multiplayer game Echo VR. Submit your own feature requests here!"
     author = ""
-    title = "Echo Arena Feature Requests"
+    title = "Echo VR Feature Requests"
 
     if request.query.get("request","null") != "null":
-        c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["request"]})
-        fetched = c.fetchall()
-        if len(fetched) != 0:
-            desc = fetched[0][5]
-            author = fetched[0][1]
-            title = fetched[0][3] + " | Echo Arena Feature Request"
+        return web.HTTPPermanentRedirect("/request/%s"%request.query.get("request","null"))
+
+    return {"error": request.query.get("error", None), "success": request.query.get("success", None), "desc": desc, "author": author, "title": title, "submit": request.query.get("r", None), **session}
+
+@routes.get("/request/{requestid}")
+@aiohttp_jinja2.template("home.html")
+async def request(request):
+    session = await get_session(request)
+
+    c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.match_info.get("requestid")})
+    fetched = c.fetchall()
+    if len(fetched) != 0:
+        desc = fetched[0][5]
+        author = fetched[0][1]
+        title = fetched[0][3] + " | Echo VR Feature Request"
 
     if "username" not in session and request.query.get("r", None) != None and "Discordbot" not in request.headers.get("user-agent"): return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=https%3A%2F%2Fearequests.mateuszdrwal.com%2Fauth%3Fr%3D1&response_type=code&scope=identify")
 
-    return {"error": request.query.get("error", None), "success": request.query.get("success", None), "desc": desc, "author": author, "title": title, "submit": request.query.get("r", None), **session}
+    return {"error": None, "success": None, "desc": desc, "author": author, "title": title, "submit": None, **session}
+
 
 @routes.get("/api/requests")
 async def rawrequests(request):
@@ -837,7 +868,8 @@ async def rawrequests(request):
                              "vote": {"up": 0, "down": 0, "upDiscord": 0, "downDiscord": 0},
                              "devresp": request[11],
                              "self": int(request[10]) == int(session.get("id",0)),
-                             "timestamp": request[0]
+                             "timestamp": request[0],
+                             "mode": request[14]
                              } for request in fetched}
 
     if "username" in session:
@@ -906,6 +938,10 @@ async def logout(request):
     session.invalidate()
     return web.HTTPFound("/")
 
+@routes.get("/spreadsheet")
+async def spreadsheet(request):
+    return web.HTTPFound("https://docs.google.com/spreadsheets/d/1l32dkgQSoyVSAJZ8ENMjy_dXC4JIpLTu37sQ9QbcPSY/edit#gid=2040872354")
+
 @routes.post("/api/vote")
 async def vote(request):
     try:
@@ -951,8 +987,9 @@ async def newrequest(request):
     data = await request.post()
     session = await get_session(request)
     try:
-        assert "title" in data and "type" in data and "category" in data and "description" in data
-        assert len(data["title"]) <= 100 and len(data["type"]) <= 100 and len(data["category"]) <= 100 and len(data["description"]) <= 2000
+        assert "title" in data and "mode" in data and "description" in data
+        assert len(data["title"]) <= 100 and len(data["description"]) <= 1500
+        assert data["mode"] in ["ea","ec","n/a"]
         assert "username" in session
         assert client.get_user(int(session["id"])) != None
     except AssertionError:
@@ -960,10 +997,10 @@ async def newrequest(request):
         return web.HTTPBadRequest()
     
     user = client.get_user(int(session["id"]))
-    message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**What kind of submission is this?**: %s\n**Category**: %s\n**Description**: %s"%(user.mention, data["title"], data["type"], data["category"], data["description"]))
-    c.execute("INSERT INTO requests VALUES (:created, :author, :type, :title, :category, :description, 0, 0, 0, :mid, :uid, '', 0, 0)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "type": html.escape(data["type"]), "title": html.escape(data["title"]), "category": html.escape(data["category"]), "description": html.escape(data["description"]), "mid": message.id, "uid": user.id})
+    message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**Game mode**: %s\n**Description**: %s"%(user.mention, data["title"], {"ea":"Echo Arena", "ec": "Echo Combat", "n/a": "Not Applicable"}.get(data["mode"]), data["description"]))
+    c.execute("INSERT INTO requests VALUES (:created, :author, '', :title, '', :description, 0, 0, 0, :mid, :uid, '', 0, 0, :mode)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "title": html.escape(data["title"]), "mode": html.escape(data["mode"]), "description": html.escape(data["description"]), "mid": message.id, "uid": user.id})
     conn.commit()
-    analyzeMessage(message)
+    await analyzeMessage(message)
     logger.info("%s created a request titled \"%s\""%(session["username"], data["title"]))
     return web.HTTPFound("/?success=Request%20created%21")
 
@@ -1037,6 +1074,28 @@ async def status(request):
     logger.info("%s updated status of %s to %s"%(session["username"], request.query["id"], ["Open","Planned","Rejected","Implemented","Not applicable anymore"][int(request.query["target"])]))
     return web.Response(text="OK")
 
+@routes.post("/api/mode")
+async def mode(request):
+    session = await get_session(request)
+    try:
+        assert "id" in request.query and "target" in request.query
+        assert len(request.query["id"]) == 18
+        int(request.query["id"])
+        assert "username" in session
+        assert session["admin"]
+        assert request.query["target"] in ["ea","ec","n/a"]
+    except AssertionError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+    except ValueError:
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    c.execute("UPDATE requests SET mode = :mode WHERE mid = :mid", {"mode": request.query["target"], "mid": request.query["id"]})
+    conn.commit()
+    logger.info("%s updated mode of %s to %s"%(session["username"], request.query["id"], request.query["target"]))
+    return web.Response(text="OK")
+
 @routes.get("/robots.txt")
 async def robots(request):
     return web.Response(text="""
@@ -1045,7 +1104,20 @@ Disallow: /api/
 Disallow: /login
 Disallow: /logout
 Disallow: /auth
+
+Allow: /api/requests
+Sitemap: https://earequests.mateuszdrwal.com/sitemap.txt
 """)
+
+@routes.get("/sitemap.txt")
+async def siteamp(request):
+
+    c.execute("SELECT * FROM requests WHERE disabled = 0")
+    fetched = c.fetchall()
+
+    string = "\n".join("https://earequests.mateuszdrwal.com/request/%s"%request[9] for request in fetched)
+
+    return web.Response(text=string)
 
 app.router.add_static("/static","static")
 setup(app, EncryptedCookieStorage(open("cookiekey", "rb").readline()))

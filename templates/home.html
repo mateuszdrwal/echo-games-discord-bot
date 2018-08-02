@@ -38,8 +38,8 @@
 					</li>
 				</ul>
 				<ul class="navbar-nav ml-auto">
-					{% if username is defined %}
 					<li class="navbar-item d-flex align-items-center">
+						{% if username is defined %}
 						<img class="rounded" src="{{ avatar }}" style="height: 2em; width: 2em">
 						{% endif %}
 						<span class="navbar-text ml-1 mr-3">{% if username is defined %}{{ username }}{% else %}Not logged in{% endif %}</span>
@@ -68,16 +68,15 @@
 								<input class="form-control" type="text" placeholder="Title" name="title" maxlength="100" required>
 							</div>
 							<div class="form-group">
-								<select class="form-control" name="type">
-									<option>Feature request</option>
-									<option>Improving an existing feature</option>
+								<select class="form-control" name="mode" required>
+									<option value="" hidden>Game Mode</option>
+									<option value="ea">Echo Arena</option>
+									<option value="ec">Echo Combat</option>
+									<option value="n/a">Not Applicable</option>
 								</select>
 							</div>
 							<div class="form-group">
-								<input class="form-control" type="text" placeholder="Category" name="category" maxlength="100" required>
-							</div>
-							<div class="form-group">
-								<textarea class="form-control" name="description" placeholder="description" rows="5" maxlength="2000" required></textarea>
+								<textarea class="form-control" name="description" placeholder="description" rows="5" maxlength="1500" required></textarea>
 							</div>
 
 							<button type="submit" class="btn btn-primary">Submit</button>
@@ -177,8 +176,7 @@
 							<b>Author:</b> $author<br/>
 							<b>Created at:</b> $time<br/>
 							<b>Status:</b> $status<br/>
-							<b>Suggestion type:</b> $sugtype<br/>
-							<b>Category:</b> $category<br/><br/>
+							<b>Mode:</b> $mode<br/>
 							<b>Description:</b> $description<br/><br/>
 							<b>Net votes:</b> $points<br/>
 							<b>Upvotes:</b> $upvotes<br/>
@@ -187,7 +185,7 @@
 						</div>
 						<div class="modal-footer flex-wrap">
 							<textarea id="copy" style="display: none;"></textarea>
-							<button id="shareButton" type="button" class="btn btn-primary mb-3" onclick="var copy = $('#copy')[0]; copy.style.display = 'inline'; copy.innerHTML = document.URL+'?request=request.mid'; copy.select(); document.execCommand('Copy'); copy.style.display = 'none'; copy.innerHTML = ''; this.innerHTML = 'Link copied!';">Share</button>
+							<button id="shareButton" type="button" class="btn btn-primary mb-3" onclick="var copy = $('#copy')[0]; copy.style.display = 'inline'; copy.innerHTML = window.location.origin+'/request/request.mid'; copy.select(); document.execCommand('Copy'); copy.style.display = 'none'; copy.innerHTML = ''; this.innerHTML = 'Link copied!';">Share</button>
 						{% if admin %}
 							<span class="dropdown mb-3">
 								<button class="btn btn-primary dropdown-toggle" type="button" id="devresp" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
@@ -199,6 +197,14 @@
 									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 4);">Not applicable anymore</button>
 								</div>
 							</span>
+							<span class="dropdown mb-3">
+								<button class="btn btn-primary dropdown-toggle" type="button" id="mode" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Mode</button>
+								<div class="dropdown-menu" aria-labelledby="mode">
+									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ea');">Echo Arena</button>
+									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ec');">Echo Combat</button>
+									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'n/a');">Not Applicable</button>
+								</div>
+							</span>
 							<button type="button" class="btn btn-primary mb-3" data-dismiss="modal" onclick="var resp = prompt('type your respone here'); if (resp != null) {devresp('request.mid', resp);}">Add developer response</button>
 							<button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="if (confirm('Are you sure you want to remove this request?')) {remove('request.mid')}">Remove request</button>
 						{% endif %}
@@ -207,7 +213,6 @@
 				</div>
 			</div>
 		</template>
-		<script type="text/javascript" id="test">console.log($("#test"))</script>
 
 		<template id="requestTemplate">
 			<li class="list-group-item request" id="">
@@ -215,7 +220,7 @@
 					<div>
 						<h5 class="mb-1" id="title"></h5>
 					</div>
-					<small class="text-nowrap" id="smallText"></small>
+					<small class="text-nowrap" id="smallText" style="text-align: right;"></small>
 				</div>
 				<p style="margin-bottom: 0.2em" id="description"></p>
 				<div class="d-flex justify-content-between flex-wrap">
@@ -249,6 +254,18 @@
 				xhttp.open("POST", "/api/status?id="+id+"&target="+target, true);
 				xhttp.send();
 				console.log("updating status");
+			}
+			function mode(id, target) {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (this.responseText == "OK") {
+						updateSingleRequest(id);
+						console.log("success");
+					}
+				}
+				xhttp.open("POST", "/api/mode?id="+id+"&target="+target, true);
+				xhttp.send();
+				console.log("updating mode");
 			}
 			function remove(id) {
 				var xhttp = new XMLHttpRequest();
@@ -472,7 +489,7 @@
 						})
 					}
 				};
-				xhttp.open("GET", "api/requests?request="+id, true);
+				xhttp.open("GET", "/api/requests?request="+id, true);
 				xhttp.send();
 			}
 
@@ -493,7 +510,7 @@
 						})
 					}
 				};
-				xhttp.open("GET", "api/requests?request="+id, true);
+				xhttp.open("GET", "/api/requests?request="+id, true);
 				xhttp.send();
 			}
 
@@ -508,12 +525,13 @@
 
 				modal.find("#title")[0].innerHTML = request.title;
 
+				modes = {"":"None", "ea":"Echo Arena", "ec":"Echo Combat", "n/a":"Not Applicable"}
+
 				modal.find(".modal-body")[0].innerHTML = modal.find(".modal-body")[0].innerHTML
 				.replace("$author", request.author)
 				.replace("$time", request.time)
 				.replace("$status", request.status)
-				.replace("$sugtype", request.sugtype)
-				.replace("$category", request.category)
+				.replace("$mode", modes[request.mode])
 				.replace("$description", request.description)
 				.replace("$points", request.up - request.down)
 				.replace("$upvotes", request.up)
@@ -538,17 +556,9 @@
 				modal.modal();
 			}
 
-			function getParameterByName(name, url) {
-			    if (!url) url = window.location.href;
-			    name = name.replace(/[\[\]]/g, "\\$&");
-			    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-			        results = regex.exec(url);
-			    if (!results) return null;
-			    if (!results[2]) return '';
-			    return decodeURIComponent(results[2].replace(/\+/g, " "));
-			}
-
-			id = getParameterByName("request")
+			id = window.location.href.substr(window.location.href.lastIndexOf('/') + 1);
+			if (isNaN(id)) id = "null";
+			if (id == "") id = "null";
 
 			updateRequests();
 
