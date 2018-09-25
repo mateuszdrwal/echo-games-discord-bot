@@ -188,7 +188,7 @@ async def updateRequest(message):
                 except ValueError:
                     pass
             
-        elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF"]:
+        elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF",u"\N{WHITE HEAVY CHECK MARK}"]:
             async for user in reaction.users():
                 if reaction.message.author.bot:
                     if reaction.message.mentions[0].id == user.id:
@@ -432,15 +432,15 @@ async def on_message(message):
         await asyncio.sleep(5)
     if message.channel == requestChannel: await analyzeMessage(message, new=True)
 
-    # if message.content == "!status":
-    #     string = "Echo games servers status:\n"
-    #     data = json.loads(await get("https://api.readyatdawn.com/status?projectid=rad14"))
-    #     for service in data:
-    #         if service["serviceid"] == "services": msg = service["message"]
-    #         if service["serviceid"] in ["services","news"]: continue
-    #         string += "%s %s: **%s**\n" % ((u"\N{WHITE HEAVY CHECK MARK}", service["serviceid"], "Online") if service["available"] else ("\u274c", service["serviceid"], "Offline"))
-    #     string += "message: **%s**" % msg
-    #     await message.channel.send(string)
+    if message.content == "!status":
+        string = "Echo games servers status:\n"
+        data = json.loads(await get("https://api.readyatdawn.com/status?projectid=rad14"))
+        for service in data:
+            if service["serviceid"] == "services": msg = service["message"]
+            if service["serviceid"] in ["services","news"]: continue
+            string += "%s %s: **%s**\n" % ((u"\N{WHITE HEAVY CHECK MARK}", service["serviceid"], "Online") if service["available"] else ("\u274c", service["serviceid"], "Offline"))
+        string += "message: **%s**" % msg
+        await message.channel.send(string)
 
     if message.content == "!verifyesl":
         if message.author.dm_channel == None: await message.author.create_dm()
@@ -503,7 +503,7 @@ async def cupTask(cupChannel, filesuffix, link):
         raw = await eslApi(link.format("inProgress,upcoming"))
         for cup in raw.values():
             cuptime = datetime.datetime.strptime(cup["timeline"]["inProgress"]["begin"].replace(":",""), "%Y-%m-%dT%H%M%S%z").timestamp()
-            if ("registration" in cup["name"]["full"].lower() or "stage" in cup["name"]["full"].lower() or cuptime-time.time() < 0) and not ("summer" in cup["name"]["full"].lower()):
+            if ("registration" in cup["name"]["full"].lower() or "stage" in cup["name"]["full"].lower() or "qualifier" in cup["name"]["full"].lower() or cuptime-time.time() < 0) and not ("summer" in cup["name"]["full"].lower()):
                 cups.append([cuptime, cup["id"]])
         
         if len(cups) == 0:
@@ -679,7 +679,12 @@ async def cupTask(cupChannel, filesuffix, link):
                 if (pairing["id"],) not in ids:
                     break
             else:
-                if time.time() - cup[0] > 3600 and await eslApi(link.format("inProgress")) == {}:
+                inProgressCups = await eslApi(link.format("inProgress"))
+                a = True
+                for cup2 in allcups:
+                    if str(cup2) in inProgressCups:
+                        a = False
+                if time.time() - cup[0] > 3600 and a:
                     break
 
         await cupChannel.send("The cup has now ended! Good job everyone!")
@@ -702,12 +707,16 @@ async def cupTask(cupChannel, filesuffix, link):
         await asyncio.sleep(3600*12)
 
 async def eslApi(path):
-    if False and ("matches" in path or "leagues?" in path): #testing
-        raw = await get("https://eslmock.mateuszdrwal.com"+path)
-    else:
-        raw = await get("https://api.eslgaming.com"+path)
+    while True:
+        try:
+            if False and ("matches" in path or "leagues?" in path): #testing
+                raw = await get("https://eslmock.mateuszdrwal.com"+path)
+            else:
+                raw = await get("https://api.eslgaming.com"+path)
 
-    return json.loads(raw)
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
 
 async def get(url, headers=None):
     global http
@@ -808,8 +817,11 @@ routes = web.RouteTableDef()
 app = web.Application(loop=client.loop)
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('./templates'))
 
+def ip(request):
+    return request.headers["X-Real-IP"]
+
 def who(session, request):
-    return "%s (%s)"%(session["username"], request.remote) if "username" in session else request.remote
+    return "%s (%s)"%(session["username"], ip(request)) if "username" in session else ip(request)
 
 @routes.get("/")
 @aiohttp_jinja2.template("home.html")
@@ -925,7 +937,7 @@ async def auth(request):
             logger.info("%s logged in"%response["username"])
         return web.HTTPFound("/") if request.query.get("r") == None else web.HTTPFound("/?r=1")
     except AssertionError:
-        logger.warn("error when logging in %s. queries: %s discord api response: %s"%(request.remote, request.query, response))
+        logger.warn("error when logging in %s. queries: %s discord api response: %s"%(who(session, request), request.query, response))
         return web.HTTPFound("/?error=An+error+has+occurred+while+trying+to+log+in.+Please+try+again.+If+the+issue+persists+please+PM+me%2C+mateuszdrwal%239960")
 
 @routes.get("/logout")
@@ -934,7 +946,7 @@ async def logout(request):
     if "username" in session:
         logger.info("%s logging out"%session["username"])
     else:
-        logger.warn("%s logging out without being logged in"%request.remote)
+        logger.warn("%s logging out without being logged in"%who(session, request))
     session.invalidate()
     return web.HTTPFound("/")
 
@@ -991,10 +1003,18 @@ async def newrequest(request):
         assert len(data["title"]) <= 100 and len(data["description"]) <= 1500
         assert data["mode"] in ["ea","ec","n/a"]
         assert "username" in session
+    except AssertionError:
+        logger.warning("%s is being suspicious with data:"%who(session, request))
+        logger.debug(data)
+        logger.debug(session)
+        return web.HTTPBadRequest()
+
+    try:
         assert client.get_user(int(session["id"])) != None
     except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
+        logger.info("%s tried making a request without being in the discord"%who(session, request))
+        return web.HTTPFound("/?error=You%20are%20trying%20to%20create%20a%20request%20with%20a%20discord%20account%20that%20is%20not%20in%20the%20Echo%20Games%20discord.%20Please%20make%20sure%20you%20are%20logged%20on%20to%20the%20correct%20discord%20account%20or%20join%20the%20Echo%20Games%20discord.")
+
     
     user = client.get_user(int(session["id"]))
     message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**Game mode**: %s\n**Description**: %s"%(user.mention, data["title"], {"ea":"Echo Arena", "ec": "Echo Combat", "n/a": "Not Applicable"}.get(data["mode"]), data["description"]))
@@ -1018,10 +1038,12 @@ async def devresp(request):
         c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": data["id"]})
         assert c.fetchall() != []
     except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
+        logger.warning("%s is being suspicious with data:"%who(session, request))
+        logger.debug(data)
         return web.HTTPBadRequest()
     except ValueError:
-        logger.warning("%s is being suspicious"%who(session, request))
+        logger.warning("%s is being suspicious with data:"%who(session, request))
+        logger.debug(data)
         return web.HTTPBadRequest()
 
     c.execute("INSERT INTO responses VALUES (:mid, 0, :resp, :author)", {"mid": data["id"], "resp": data["devresp"], "author": session["username"]})

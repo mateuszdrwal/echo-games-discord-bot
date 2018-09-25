@@ -154,6 +154,9 @@
 					<button class="dropdown-item" type="button" onclick="filter = 5; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Popular</button>
 					<button class="dropdown-item" type="button" onclick="filter = 6; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Unpopular</button>
 					<button class="dropdown-item" type="button" onclick="filter = 8; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Responded</button>
+					{% if username is defined %}
+					<button class="dropdown-item" type="button" onclick="filter = 9; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Mine</button>
+					{% endif %}
 				</div>
 			</span>
 		</div>
@@ -473,6 +476,7 @@
 						case 6: return this.attributes["data-sort"].value > 0; break;
 						case 7: return requestList[this.attributes["id"].value].statusCode != 4; break;
 						case 8: return requestList[this.attributes["id"].value].devresp == ""; break;
+						case 9: return !requestList[this.attributes["id"].value].self; break;
 					}
 				}).prop("style", "Display: None");
 			}
