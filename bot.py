@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
-import discord, asyncio, pygsheets, datetime, re, time, aiohttp, async_timeout, json, io, sys, traceback, sqlite3, threading, aiohttp_jinja2, jinja2, logging, os, random, base64, html
+import discord
+import asyncio
+import pygsheets
+import datetime
+import re
+import time
+import aiohttp
+import async_timeout
+import json
+import io
+import sys
+import traceback
+import sqlite3
+import threading
+import aiohttp_jinja2
+import jinja2
+import logging
+import os
+import random
+import base64
+import html
+import pickle
 from oauth2client.service_account import ServiceAccountCredentials
 from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -16,15 +37,15 @@ gs = pygsheets.authorize(service_file="key.json")
 
 ss = gs.open("Echo VR Feature Requests")
 allS = ss.worksheet_by_title("All")
-openS  = ss.worksheet_by_title("Open")
-rejS  = ss.worksheet_by_title("Rejected")
-doneS  = ss.worksheet_by_title("Implemented")
-planS  = ss.worksheet_by_title("Planned")
+openS = ss.worksheet_by_title("Open")
+rejS = ss.worksheet_by_title("Rejected")
+doneS = ss.worksheet_by_title("Implemented")
+planS = ss.worksheet_by_title("Planned")
 stats = ss.worksheet_by_title("Stats")
 
 pattern = re.compile(r"\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 pattern2 = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?What kind of submission is this\?[\*,:, ]*(.*?) ?\n\n?\*?\*?Category[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
-newpattern = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Game mode[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
+newpattern = re.compile(r"\*?\*?Title[\*,:, ]*(.*?) ?\n\*?\*?Game [mM]ode[\*,:, ]*(.*?) ?\n\*?\*?Description[\*,:, ]*([\s\S]*)")
 commentpattern = re.compile(r"^(\d{18})[^>].*?([^\s:-][\s\S]*)")
 profilepattern = re.compile(r"esl.*\/(\d+)")
 
@@ -53,7 +74,7 @@ async def perm(reaction):
         try:
             member = guild.get_member(user.id)
             if discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal, member.roles) != None:
-                return True                             
+                return True
         except:
             pass
     return False
@@ -481,6 +502,68 @@ async def on_message(message):
         c.execute("DELETE FROM esl WHERE uid = :uid", {"uid": message.author.id})
         await message.author.dm_channel.send("Your discord account is no longer linked to your ESL account.")
 
+    if message.content.startswith("!map"):
+        with open("maps.pickle", "rb") as f:
+            await message.channel.send(random.choice(pickle.load(f)))
+    
+    if message.content.startswith("!options") and (discord.utils.find(lambda r: r.name == "Event Managers", message.author.roles) or message.author.id == 140504440930041856):
+        items = message.content.split()[1:]
+        if items != []:
+            with open("maps.pickle", "wb") as f:
+                pickle.dump(items, f)
+            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+            return
+        await message.add_reaction(u"\N{CROSS MARK}")
+
+regionalRoles = [328669711086780426, 328669659412955137]
+
+roles = [{
+    "role": 548653243216166942,
+    "message": 548643103956008981,
+    "emoji": "HeartEcho",
+    "removeOnly": True,
+    "removeBefore": []
+}, {
+    "role": 328669659412955137,
+    "message": 548643103956008981,
+    "emoji": "flag_us_ca",
+    "removeOnly": False,
+    "removeBefore": regionalRoles
+}, {
+    "role": 328669711086780426,
+    "message": 548643103956008981,
+    "emoji": "🇪🇺",
+    "removeOnly": False,
+    "removeBefore": regionalRoles
+}
+]
+
+@client.event
+async def on_raw_reaction_add(payload):
+    print(payload.emoji.name)
+    for role in roles:
+        if payload.message_id == role["message"] and payload.emoji.name == role["emoji"]:
+            await (await (client.get_channel(payload.channel_id)).get_message(role["message"])).add_reaction(payload.emoji)
+            member = guild.get_member(payload.user_id)
+            for toRemove in role["removeBefore"]:
+                await member.remove_roles(guild.get_role(toRemove))
+            if role["removeOnly"]:
+                await member.remove_roles(guild.get_role(role["role"]))
+            else:
+                await member.add_roles(guild.get_role(role["role"]))
+
+@client.event
+async def on_raw_reaction_remove(payload):
+    for role in roles:
+        if payload.message_id == role["message"] and payload.emoji.name == role["emoji"]:
+            member = guild.get_member(payload.user_id)
+            await member.remove_roles(guild.get_role(role["role"]))
+
+@client.event
+async def on_member_join(member):
+    if member.guild == guild:
+        await member.add_roles(guild.get_role(548653243216166942))
+
 @client.event
 async def on_message_edit(before, message):
     if not client.is_ready():
@@ -804,8 +887,10 @@ async def startup():
 client.loop.create_task(startup())
 client.loop.create_task(errorCatcher(loop()))
 client.loop.create_task(backup())
-client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
+#client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
+#client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(390482469469552643,"TEST","/play/v1/leagues?states={}"))) #testing
 client.loop.create_task(client.start(secrets["discord token"]))
 
@@ -834,6 +919,8 @@ async def home(request):
 
     if request.query.get("request","null") != "null":
         return web.HTTPPermanentRedirect("/request/%s"%request.query.get("request","null"))
+
+    if "username" not in session and request.query.get("r", None) != None and "Discordbot" not in request.headers.get("user-agent"): return web.HTTPFound("https://discordapp.com/api/oauth2/authorize?client_id=427817724966600705&redirect_uri=https%3A%2F%2Fearequests.mateuszdrwal.com%2Fauth%3Fr%3D1&response_type=code&scope=identify")
 
     return {"error": request.query.get("error", None), "success": request.query.get("success", None), "desc": desc, "author": author, "title": title, "submit": request.query.get("r", None), **session}
 
@@ -929,7 +1016,7 @@ async def auth(request):
         session["avatar"] = "https://cdn.discordapp.com/avatars/%s/%s.png?size=32"%(response["id"], response["avatar"])
 
         member = guild.get_member(int(response["id"]))
-        if member != None and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal, member.roles) != None:
+        if member != None and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal or member.id == 197276995787161600, member.roles) != None:
             session["admin"] = True
             logger.info("admin %s logged in"%response["username"])
         else:
@@ -1000,7 +1087,7 @@ async def newrequest(request):
     session = await get_session(request)
     try:
         assert "title" in data and "mode" in data and "description" in data
-        assert len(data["title"]) <= 100 and len(data["description"]) <= 1500
+        assert len(data["title"]) <= 100 and len(data["description"]) <= 1700
         assert data["mode"] in ["ea","ec","n/a"]
         assert "username" in session
     except AssertionError:

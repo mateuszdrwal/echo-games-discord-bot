@@ -8,3 +8,6 @@ logs
 backups
 secrets
 bk*
+*.pickle
+.vscode
+*.code-workspace
