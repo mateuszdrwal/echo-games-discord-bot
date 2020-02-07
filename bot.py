@@ -215,7 +215,7 @@ async def updateRequest(message):
                     if reaction.message.mentions[0].id == user.id:
                         continue
                 else:
-                    if reaction.message.author == user:
+                    if user in [reaction.message.author, client.user]:
                         continue
 
                 c.execute("SELECT * FROM votes WHERE mid = :mid AND uid = :uid", {"mid": message.id, "uid": user.id})
@@ -327,7 +327,7 @@ async def analyzeMessage(message, force=False, new=False):
 
         if newpatternResults[0][1].lower() not in ["ea","ec","n/a"]:
             if new:
-                await requestChannel.send(u"That mode is incorrect. please edit your message to make sure that the mode is either \"ea\" (for Echo Arena), \"ec\" (for Echo Combat) or \"n/a\" (for Not Applicable). You know it worked when i react with \N{WHITE HEAVY CHECK MARK}")
+                await requestChannel.send(u"That mode is incorrect. please edit your message to make sure that the mode is either \"ea\" (for Echo Arena), \"ec\" (for Echo Combat) or \"n/a\" (for Not Applicable). You know it worked when i react with \U0001f44d and \U0001f44e")
             return
 
         if fetched != []:
@@ -370,7 +370,8 @@ async def analyzeMessage(message, force=False, new=False):
                 "uid": message.author.id
                 })
             logger.info("new suggestion: %s"%newpatternResults[0][0])
-            await message.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+            await message.add_reaction("\U0001F44D")
+            await message.add_reaction("\U0001F44E")
 
     conn.commit()
 
@@ -562,7 +563,8 @@ async def on_raw_reaction_remove(payload):
 @client.event
 async def on_member_join(member):
     if member.guild == guild:
-        await member.add_roles(guild.get_role(548653243216166942))
+        #await member.add_roles(guild.get_role(548653243216166942))
+        pass
 
 @client.event
 async def on_message_edit(before, message):
@@ -586,10 +588,11 @@ async def cupTask(cupChannel, filesuffix, link):
         raw = await eslApi(link.format("inProgress,upcoming"))
         for cup in raw.values():
             cuptime = datetime.datetime.strptime(cup["timeline"]["inProgress"]["begin"].replace(":",""), "%Y-%m-%dT%H%M%S%z").timestamp()
-            if ("registration" in cup["name"]["full"].lower() or "stage" in cup["name"]["full"].lower() or "qualifier" in cup["name"]["full"].lower() or cuptime-time.time() < 0) and not ("summer" in cup["name"]["full"].lower()):
-                cups.append([cuptime, cup["id"]])
+            if ("registration" in cup["name"]["full"].lower() or "stage" in cup["name"]["full"].lower() or "qualifier" in cup["name"]["full"].lower() or "vrl" in cup["name"]["full"].lower() or cuptime-time.time() < 0) and not ("summer" in cup["name"]["full"].lower()):
+                cups.append([cuptime, cup["id"], cup["name"]["full"]])
         
         if len(cups) == 0:
+            logger.info("no cups for %s, sleeping one hour" % filesuffix)
             await asyncio.sleep(3600)
             continue
             
@@ -598,7 +601,7 @@ async def cupTask(cupChannel, filesuffix, link):
 
         waitTime = cup[0]-time.time()#testing
         if waitTime > 0:
-            logger.info("waiting %s"%waitTime)
+            logger.info("waiting %s for %s" % (waitTime, cup[2]))
             await asyncio.sleep(waitTime) #waiting for cup
 
             #initial cup message
@@ -746,7 +749,7 @@ async def cupTask(cupChannel, filesuffix, link):
 
                 while True:
                     try:
-                        await cupChannel.send(file=discord.File("match.png"))
+                        #await cupChannel.send(file=discord.File("match.png"))
                         break
                     except ValueError:
                         os.remove("match.png")
@@ -887,8 +890,10 @@ async def startup():
 client.loop.create_task(startup())
 client.loop.create_task(errorCatcher(loop()))
 client.loop.create_task(backup())
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU_ea","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA_ea","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU_ec","/play/v1/leagues?&states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-eu-portal&includeHidden=0")))
+client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA_ec","/play/v1/leagues?states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-na-portal&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(390482469469552643,"TEST","/play/v1/leagues?states={}"))) #testing
@@ -1105,6 +1110,8 @@ async def newrequest(request):
     
     user = client.get_user(int(session["id"]))
     message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**Game mode**: %s\n**Description**: %s"%(user.mention, data["title"], {"ea":"Echo Arena", "ec": "Echo Combat", "n/a": "Not Applicable"}.get(data["mode"]), data["description"]))
+    await message.add_reaction("\U0001F44D")
+    await message.add_reaction("\U0001F44E")
     c.execute("INSERT INTO requests VALUES (:created, :author, '', :title, '', :description, 0, 0, 0, :mid, :uid, '', 0, 0, :mode)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "title": html.escape(data["title"]), "mode": html.escape(data["mode"]), "description": html.escape(data["description"]), "mid": message.id, "uid": user.id})
     conn.commit()
     await analyzeMessage(message)
