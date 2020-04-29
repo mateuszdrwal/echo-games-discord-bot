@@ -21,6 +21,7 @@ import random
 import base64
 import html
 import pickle
+import sentry_sdk
 from oauth2client.service_account import ServiceAccountCredentials
 from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -28,10 +29,12 @@ from PIL import Image, ImageFont, ImageDraw
 from subprocess import Popen, PIPE
 from aiohttp import web
 
-client = discord.Client()
-
 with open("secrets","r") as f:
     secrets = json.loads(f.read())
+
+sentry_sdk.init(secrets["sentry thing"])
+
+client = discord.Client()
 
 gs = pygsheets.authorize(service_file="key.json")
 
@@ -292,7 +295,7 @@ async def analyzeMessage(message, force=False, new=False):
             else:
                 c.execute("UPDATE responses SET response = :resp WHERE mid = :mid AND rmid = :rmid",{"mid": id, "rmid": message.id, "resp": comment[1]})
 
-            await updateRequest(await requestChannel.get_message(id))
+            await updateRequest(await requestChannel.fetch_message(id))
         return
         
     if (force or (message.author == client.user and (results != [] or newpatternResults != []))) and message.id not in [466682006718251039]:
@@ -382,7 +385,7 @@ async def loop():
     await client.wait_until_ready()
     await asyncio.sleep(1)
 
-    async for message in requestChannel.history(limit=None, reverse=True):
+    async for message in requestChannel.history(limit=None, oldest_first=True):
         await analyzeMessage(message)
 
     logger.info("initial update done")
@@ -392,7 +395,7 @@ async def loop():
         c.execute("SELECT * FROM requests")
         for request in c.fetchall():
             try:
-                message = await requestChannel.get_message(request[9])
+                message = await requestChannel.fetch_message(request[9])
             except discord.NotFound:
                 c.execute("DELETE FROM requests WHERE mid = :mid", {"mid": request[9]})
                 c.execute("DELETE FROM votes WHERE mid = :mid", {"mid": request[9]})
@@ -541,10 +544,9 @@ roles = [{
 
 @client.event
 async def on_raw_reaction_add(payload):
-    print(payload.emoji.name)
     for role in roles:
         if payload.message_id == role["message"] and payload.emoji.name == role["emoji"]:
-            await (await (client.get_channel(payload.channel_id)).get_message(role["message"])).add_reaction(payload.emoji)
+            await (await (client.get_channel(payload.channel_id)).fetch_message(role["message"])).add_reaction(payload.emoji)
             member = guild.get_member(payload.user_id)
             for toRemove in role["removeBefore"]:
                 await member.remove_roles(guild.get_role(toRemove))
@@ -863,13 +865,13 @@ async def on_ready():
 
     logger.info("discord.py initialized")
 
-async def errorCatcher(task):
-    global errorChannel, mateuszdrwal
-    try:
-        await task
-    except Exception as e:
-        err = sys.exc_info()
-        await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
+# async def errorCatcher(task):
+#     global errorChannel, mateuszdrwal
+#     try:
+#         await task
+#     except Exception as e:
+#         err = sys.exc_info()
+#         await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
 
 @client.event
 async def on_error(event, *args, **kwargs):
@@ -888,12 +890,12 @@ async def startup():
 
 
 client.loop.create_task(startup())
-client.loop.create_task(errorCatcher(loop()))
+client.loop.create_task(loop())
 client.loop.create_task(backup())
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU_ea","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA_ea","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"EU_ec","/play/v1/leagues?&states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-eu-portal&includeHidden=0")))
-client.loop.create_task(errorCatcher(cupTask(419202299991425024,"NA_ec","/play/v1/leagues?states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-na-portal&includeHidden=0")))
+client.loop.create_task(cupTask(419202299991425024,"EU_ea","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0"))
+client.loop.create_task(cupTask(419202299991425024,"NA_ea","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na-portal&includeHidden=0"))
+client.loop.create_task(cupTask(419202299991425024,"EU_ec","/play/v1/leagues?&states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-eu-portal&includeHidden=0"))
+client.loop.create_task(cupTask(419202299991425024,"NA_ec","/play/v1/leagues?states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-na-portal&includeHidden=0"))
 #client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(390482469469552643,"TEST","/play/v1/leagues?states={}"))) #testing
@@ -1076,7 +1078,7 @@ async def vote(request):
             else:
                 c.execute("UPDATE votes SET down = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
         conn.commit()
-        await updateRequest(await requestChannel.get_message(request.query["id"]))
+        await updateRequest(await requestChannel.fetch_message(request.query["id"]))
         logger.info("%s %svoted %s setting %svote"%(session["username"], "" if int(request.query["target"]) else "un", request.query["id"], "up" if int(request.query["up"]) else "down"))
         return web.Response(text="OK")
     except AssertionError:
@@ -1142,7 +1144,7 @@ async def devresp(request):
 
     c.execute("INSERT INTO responses VALUES (:mid, 0, :resp, :author)", {"mid": data["id"], "resp": data["devresp"], "author": session["username"]})
     conn.commit()
-    await updateRequest(await requestChannel.get_message(data["id"]))
+    await updateRequest(await requestChannel.fetch_message(data["id"]))
     logger.info("%s responded to %s"%(session["username"], data["id"]))
     return web.Response(text="OK")
 
