@@ -1,580 +1,580 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<!-- Required meta tags -->
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
-		<meta name="google-site-verification" content="XJCZ921Q8eko4STzYrhKwV8DmDpdBQGob8K3Gi3r4yM"/>
-		<meta name="description" content="{{ desc }}"/>
-		<meta name="author" content="{{ author }}"/>
-		<title>{{ title }}</title>
+    <head>
+        <!-- Required meta tags -->
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+        <meta name="google-site-verification" content="XJCZ921Q8eko4STzYrhKwV8DmDpdBQGob8K3Gi3r4yM"/>
+        <meta name="description" content="{{ desc }}"/>
+        <meta name="author" content="{{ author }}"/>
+        <title>{{ title }}</title>
 
-		<!-- Bootstrap CSS -->
-		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+        <!-- Bootstrap CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
 
-		<link rel="icon" href="/static/icon.png">
-		<style type="text/css">
-			@media only screen and (max-width: 23.5rem) {
-				.navbar-brand {
-					font-size: 1rem
-				}
-			}
-		</style>
-	</head>
-	<body>
+        <link rel="icon" href="/static/icon.png">
+        <style type="text/css">
+            @media only screen and (max-width: 23.5rem) {
+                .navbar-brand {
+                    font-size: 1rem
+                }
+            }
+        </style>
+    </head>
+    <body>
 
-		<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+        <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
 
-		<nav class="navbar sticky-top navbar-expand-md navbar-dark bg-dark">
-			<a class="navbar-brand" href="/">Echo VR Feature Requests</a>
-			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-				<span class="navbar-toggler-icon"></span>
-			</button>
+        <nav class="navbar sticky-top navbar-expand-md navbar-dark bg-dark">
+            <a class="navbar-brand" href="/">Echo VR Feature Requests</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-			<div class="ml-auto collapse navbar-collapse" id="navbarNav">
-				<ul class="navbar-nav">
-					<li class="navbar-item">
-						<a class="btn btn-primary text-nowrap" {% if username is defined %}data-toggle="modal" data-target="#requestmodal" href=""{% else %}href="/login"{% endif %}>Create Feature Request</a>
-					</li>
-				</ul>
-				<ul class="navbar-nav ml-auto">
-					<li class="navbar-item d-flex align-items-center">
-						{% if username is defined %}
-						<img class="rounded" src="{{ avatar }}" style="height: 2em; width: 2em">
-						{% endif %}
-						<span class="navbar-text ml-1 mr-3">{% if username is defined %}{{ username }}{% else %}Not logged in{% endif %}</span>
-					</li>
-					<li class="navbar-item mt-2 mt-md-0">
-						{% if username is undefined %}
-						<a class="btn btn-primary" role="Button" href="/login">Log In</a>
-						{% else %}
-						<a class="btn btn-primary" role="Button" href="/logout">Log Out</a>
-						{% endif %}
-					</li>
-				</ul>
-			</div>
-		</nav>
+            <div class="ml-auto collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="navbar-item">
+                        <a class="btn btn-primary text-nowrap" {% if username is defined %}data-toggle="modal" data-target="#requestmodal" href=""{% else %}href="/login"{% endif %}>Create Feature Request</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ml-auto">
+                    <li class="navbar-item d-flex align-items-center">
+                        {% if username is defined %}
+                        <img class="rounded" src="{{ avatar }}" style="height: 2em; width: 2em">
+                        {% endif %}
+                        <span class="navbar-text ml-1 mr-3">{% if username is defined %}{{ username }}{% else %}Not logged in{% endif %}</span>
+                    </li>
+                    <li class="navbar-item mt-2 mt-md-0">
+                        {% if username is undefined %}
+                        <a class="btn btn-primary" role="Button" href="/login">Log In</a>
+                        {% else %}
+                        <a class="btn btn-primary" role="Button" href="/logout">Log Out</a>
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        </nav>
 
-		<div class="modal fade" id="requestmodal" role="dialog" aria-labelledby="requestlabel" aria-hidden="true">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="requestlabel">New request</h5>
-						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-					</div>
-					<div class="modal-body">
-						<form method="post" action="/api/newrequest">
-							<div class="form-group">
-								<input class="form-control" type="text" placeholder="Title" name="title" maxlength="100" required>
-							</div>
-							<div class="form-group">
-								<select class="form-control" name="mode" required>
-									<option value="" hidden>Game Mode</option>
-									<option value="ea">Echo Arena</option>
-									<option value="ec">Echo Combat</option>
-									<option value="n/a">Not Applicable</option>
-								</select>
-							</div>
-							<div class="form-group">
-								<textarea class="form-control" name="description" placeholder="description" rows="5" maxlength="1700" required></textarea>
-							</div>
+        <div class="modal fade" id="requestmodal" role="dialog" aria-labelledby="requestlabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="requestlabel">New request</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <form method="post" action="/api/newrequest">
+                            <div class="form-group">
+                                <input class="form-control" type="text" placeholder="Title" name="title" maxlength="100" required>
+                            </div>
+                            <div class="form-group">
+                                <select class="form-control" name="mode" required>
+                                    <option value="" hidden>Game Mode</option>
+                                    <option value="ea">Echo Arena</option>
+                                    <option value="ec">Echo Combat</option>
+                                    <option value="n/a">Not Applicable</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <textarea class="form-control" name="description" placeholder="description" rows="5" maxlength="1700" required></textarea>
+                            </div>
 
-							<button type="submit" class="btn btn-primary">Submit</button>
-						</form>
-					</div>
-				</div>
-			</div>
-		</div>
+                            <button type="submit" class="btn btn-primary">Submit</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-		{% if error is not none %}
-		<div class="container mt-3">
-			<div class="alert alert-danger" role="alert">
-				{{ error }}
-			</div>
-		</div>
-		{% endif %}
+        {% if error is not none %}
+        <div class="container mt-3">
+            <div class="alert alert-danger" role="alert">
+                {{ error }}
+            </div>
+        </div>
+        {% endif %}
 
-		{% if success is not none %}
-		<div class="container mt-3">
-			<div class="alert alert-success" role="alert">
-				{{ success }}
-			</div>
-		</div>
-		{% endif %}
+        {% if success is not none %}
+        <div class="container mt-3">
+            <div class="alert alert-success" role="alert">
+                {{ success }}
+            </div>
+        </div>
+        {% endif %}
 
-		{% if username is not defined %}
-		<div class="container mt-3">
-			<div class="alert alert-success" role="alert">
-				Please <a href="/login">log in</a> if you want to vote on requests and see which you have already voted on!
-			</div>
-		</div>
-		{% endif %}
+        {% if username is not defined %}
+        <div class="container mt-3">
+            <div class="alert alert-success" role="alert">
+                Please <a href="/login">log in</a> if you want to vote on requests and see which you have already voted on!
+            </div>
+        </div>
+        {% endif %}
 
-		{% if admin %}
-		<div class="container mt-3">
-			<div class="jumbotron">
-				<h1>Welcome Admin!</h1>
-				<p>You have a couple more options here than the average user:</p>
-				<ul>
-					<li><p>Change the status of all requests. Overrides any status set from discord if it's anything other than Open. This is done in the details popup.</p></li>
-					<li><p>Remove any request. This is semi-permanent, you will have to contact me if you want to reverse it. This is also done in the details popup.</p></li>
-					<li><p>Add a developer response to any request. Your name will be visible on it. Again, semi-permanent, contact me to reverse. Also, you guessed it, this is also done in the details popup.</p></li>
-				</ul>
-				<p>Remember that these functions are all also available on discord:</p>
-				<ul>
-					<li><p>React on the message with &#128467;, &#9989;, &#10060; or nothing to set the request to planned, implemented, rejected or open respectively.</p></li>
-					<li><p>React on the message with &#9940; to remove it from this website and the spreadsheet.</p></li>
-					<li><p>Prefix you response with the message id of the message to add a developer response. An example response looks like this: "123456789012345678 this is the dev response". The message id can be obtained from the spreadsheet or by enabling developer mode in discord under Appearance and right clicking the message.</p></li>
-				</ul>
-				<p>If something doesn't work, dont hesitate to contact me. I'll be happy to fix it.</p>
-				<p>Contact: mateuszdrwal#9960 on discord, drwal.mateusz@gmail.com otherwise.</p>
-			</div>
-		</div>
-		{% endif %}
+        {% if admin %}
+        <div class="container mt-3">
+            <div class="jumbotron">
+                <h1>Welcome Admin!</h1>
+                <p>You have a couple more options here than the average user:</p>
+                <ul>
+                    <li><p>Change the status of all requests. Overrides any status set from discord if it's anything other than Open. This is done in the details popup.</p></li>
+                    <li><p>Remove any request. This is semi-permanent, you will have to contact me if you want to reverse it. This is also done in the details popup.</p></li>
+                    <li><p>Add a developer response to any request. Your name will be visible on it. Again, semi-permanent, contact me to reverse. Also, you guessed it, this is also done in the details popup.</p></li>
+                </ul>
+                <p>Remember that these functions are all also available on discord:</p>
+                <ul>
+                    <li><p>React on the message with &#128467;, &#9989;, &#10060; or nothing to set the request to planned, implemented, rejected or open respectively.</p></li>
+                    <li><p>React on the message with &#9940; to remove it from this website and the spreadsheet.</p></li>
+                    <li><p>Prefix you response with the message id of the message to add a developer response. An example response looks like this: "123456789012345678 this is the dev response". The message id can be obtained from the spreadsheet or by enabling developer mode in discord under Appearance and right clicking the message.</p></li>
+                </ul>
+                <p>If something doesn't work, dont hesitate to contact me. I'll be happy to fix it.</p>
+                <p>Contact: mateuszdrwal#9960 on discord, drwal.mateusz@gmail.com otherwise.</p>
+            </div>
+        </div>
+        {% endif %}
 
-		<div class="container mt-3">
-			<span class="dropdown">
-				<button class="btn btn-primary dropdown-toggle" type="button" id="sort" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sort</button>
-				<div class="dropdown-menu" aria-labelledby="sort">
-					<button class="dropdown-item" type="button" onclick="sort = 0; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Net votes descending</button>
-					<button class="dropdown-item" type="button" onclick="sort = 1; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Net votes ascending</button>
-					<button class="dropdown-item" type="button" onclick="sort = 2; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Recent</button>
-					<button class="dropdown-item" type="button" onclick="sort = 3; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Old</button>
-				</div>
-			</span>
-			<span class="dropdown ml-2">
-				<button class="btn btn-primary dropdown-toggle" type="button" id="filter" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Filter</button>
-				<div class="dropdown-menu" aria-labelledby="filter">
-					<button class="dropdown-item" type="button" onclick="filter = 0; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">All</button>
-					<button class="dropdown-item" type="button" style="background-color: #ffeeba" onclick="filter = 1; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Planned</button>
-					<button class="dropdown-item" type="button" style="background-color: #c3e6cb" onclick="filter = 2; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Implemented</button>
-					<button class="dropdown-item" type="button" style="background-color: #f5c6cb" onclick="filter = 3; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Rejected</button>
-					<button class="dropdown-item" type="button" style="background-color: #d6d8db" onclick="filter = 7; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Not applicable anymore</button>
-					<button class="dropdown-item" type="button" onclick="filter = 4; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Open</button>
-					<button class="dropdown-item" type="button" onclick="filter = 5; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Popular</button>
-					<button class="dropdown-item" type="button" onclick="filter = 6; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Unpopular</button>
-					<button class="dropdown-item" type="button" onclick="filter = 8; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Responded</button>
-					{% if username is defined %}
-					<button class="dropdown-item" type="button" onclick="filter = 9; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Mine</button>
-					{% endif %}
-				</div>
-			</span>
-		</div>
+        <div class="container mt-3">
+            <span class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="sort" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Sort</button>
+                <div class="dropdown-menu" aria-labelledby="sort">
+                    <button class="dropdown-item" type="button" onclick="sort = 0; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Net votes descending</button>
+                    <button class="dropdown-item" type="button" onclick="sort = 1; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Net votes ascending</button>
+                    <button class="dropdown-item" type="button" onclick="sort = 2; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Recent</button>
+                    <button class="dropdown-item" type="button" onclick="sort = 3; $('#sort')[0].innerHTML = this.innerHTML; setTimeout(sortRequests, 10);">Old</button>
+                </div>
+            </span>
+            <span class="dropdown ml-2">
+                <button class="btn btn-primary dropdown-toggle" type="button" id="filter" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Filter</button>
+                <div class="dropdown-menu" aria-labelledby="filter">
+                    <button class="dropdown-item" type="button" onclick="filter = 0; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">All</button>
+                    <button class="dropdown-item" type="button" style="background-color: #ffeeba" onclick="filter = 1; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Planned</button>
+                    <button class="dropdown-item" type="button" style="background-color: #c3e6cb" onclick="filter = 2; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Implemented</button>
+                    <button class="dropdown-item" type="button" style="background-color: #f5c6cb" onclick="filter = 3; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Rejected</button>
+                    <button class="dropdown-item" type="button" style="background-color: #d6d8db" onclick="filter = 7; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Not applicable anymore</button>
+                    <button class="dropdown-item" type="button" onclick="filter = 4; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Open</button>
+                    <button class="dropdown-item" type="button" onclick="filter = 5; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Popular</button>
+                    <button class="dropdown-item" type="button" onclick="filter = 6; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Unpopular</button>
+                    <button class="dropdown-item" type="button" onclick="filter = 8; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Responded</button>
+                    {% if username is defined %}
+                    <button class="dropdown-item" type="button" onclick="filter = 9; $('#filter')[0].innerHTML = this.innerHTML; filterRequests();">Mine</button>
+                    {% endif %}
+                </div>
+            </span>
+        </div>
 
-		<div class="container">
-			<ul class="list-group mt-3 mb-3" id="requestList"></ul>
-		</div>
+        <div class="container">
+            <ul class="list-group mt-3 mb-3" id="requestList"></ul>
+        </div>
 
-		<div class="fixed-bottom"><a class="badge badge-secondary mb-1 ml-1" href="https://github.com/mateuszdrwal/echo-games-discord-bot" target="_blank"><img src="/static/GitHub-Mark-64px.png" height=32 class="mr-2">Contribute on github!</a></div>
+        <div class="fixed-bottom"><a class="badge badge-secondary mb-1 ml-1" href="https://github.com/mateuszdrwal/echo-games-discord-bot" target="_blank"><img src="/static/GitHub-Mark-64px.png" height=32 class="mr-2">Contribute on github!</a></div>
 
-		<template id="modalTemplate">
-			<div class="modal fade" id="details" role="dialog" aria-labelledby="title" aria-hidden="true">
-				<div class="modal-dialog">
-					<div class="modal-content">
-						<div class="modal-header">
-							<h5 class="modal-title" id="title"></h5>
-							<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-						</div>
-						<div class="modal-body">
-							<b>Author:</b> $author<br/>
-							<b>Created at:</b> $time<br/>
-							<b>Status:</b> $status<br/>
-							<b>Mode:</b> $mode<br/>
-							<b>Description:</b> $description<br/><br/>
-							<b>Net votes:</b> $points<br/>
-							<b>Upvotes:</b> $upvotes<br/>
-							<b>Downvotes:</b> $downvotes<br/><br/>
-							<b>Developer responses:</b><br/>$devresp
-						</div>
-						<div class="modal-footer flex-wrap">
-							<textarea id="copy" style="display: none;"></textarea>
-							<button id="shareButton" type="button" class="btn btn-primary mb-3" onclick="var copy = $('#copy')[0]; copy.style.display = 'inline'; copy.innerHTML = window.location.origin+'/request/request.mid'; copy.select(); document.execCommand('Copy'); copy.style.display = 'none'; copy.innerHTML = ''; this.innerHTML = 'Link copied!';">Share</button>
-						{% if admin %}
-							<span class="dropdown mb-3">
-								<button class="btn btn-primary dropdown-toggle" type="button" id="devresp" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-								<div class="dropdown-menu" aria-labelledby="devresp">
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 0);">Open</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 3);">Implemented</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 2);">Rejected</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 1);">Planned</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 4);">Not applicable anymore</button>
-								</div>
-							</span>
-							<span class="dropdown mb-3">
-								<button class="btn btn-primary dropdown-toggle" type="button" id="mode" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Mode</button>
-								<div class="dropdown-menu" aria-labelledby="mode">
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ea');">Echo Arena</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ec');">Echo Combat</button>
-									<button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'n/a');">Not Applicable</button>
-								</div>
-							</span>
-							<button type="button" class="btn btn-primary mb-3" data-dismiss="modal" onclick="var resp = prompt('type your respone here'); if (resp != null) {devresp('request.mid', resp);}">Add developer response</button>
-							<button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="if (confirm('Are you sure you want to remove this request?')) {remove('request.mid')}">Remove request</button>
-						{% endif %}
-						</div>
-					</div>
-				</div>
-			</div>
-		</template>
+        <template id="modalTemplate">
+            <div class="modal fade" id="details" role="dialog" aria-labelledby="title" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="title"></h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <b>Author:</b> $author<br/>
+                            <b>Created at:</b> $time<br/>
+                            <b>Status:</b> $status<br/>
+                            <b>Mode:</b> $mode<br/>
+                            <b>Description:</b> $description<br/><br/>
+                            <b>Net votes:</b> $points<br/>
+                            <b>Upvotes:</b> $upvotes<br/>
+                            <b>Downvotes:</b> $downvotes<br/><br/>
+                            <b>Developer responses:</b><br/>$devresp
+                        </div>
+                        <div class="modal-footer flex-wrap">
+                            <textarea id="copy" style="display: none;"></textarea>
+                            <button id="shareButton" type="button" class="btn btn-primary mb-3" onclick="var copy = $('#copy')[0]; copy.style.display = 'inline'; copy.innerHTML = window.location.origin+'/request/request.mid'; copy.select(); document.execCommand('Copy'); copy.style.display = 'none'; copy.innerHTML = ''; this.innerHTML = 'Link copied!';">Share</button>
+                        {% if admin %}
+                            <span class="dropdown mb-3">
+                                <button class="btn btn-primary dropdown-toggle" type="button" id="devresp" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                <div class="dropdown-menu" aria-labelledby="devresp">
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 0);">Open</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 3);">Implemented</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 2);">Rejected</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 1);">Planned</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="status('request.mid', 4);">Not applicable anymore</button>
+                                </div>
+                            </span>
+                            <span class="dropdown mb-3">
+                                <button class="btn btn-primary dropdown-toggle" type="button" id="mode" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Mode</button>
+                                <div class="dropdown-menu" aria-labelledby="mode">
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ea');">Echo Arena</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'ec');">Echo Combat</button>
+                                    <button class="dropdown-item" type="button" data-dismiss="modal" onclick="mode('request.mid', 'n/a');">Not Applicable</button>
+                                </div>
+                            </span>
+                            <button type="button" class="btn btn-primary mb-3" data-dismiss="modal" onclick="var resp = prompt('type your respone here'); if (resp != null) {devresp('request.mid', resp);}">Add developer response</button>
+                            <button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="if (confirm('Are you sure you want to remove this request?')) {remove('request.mid')}">Remove request</button>
+                        {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
 
-		<template id="requestTemplate">
-			<li class="list-group-item request" id="">
-				<div class="d-flex w-100 justify-content-between">
-					<div>
-						<h5 class="mb-1" id="title"></h5>
-					</div>
-					<small class="text-nowrap" id="smallText" style="text-align: right;"></small>
-				</div>
-				<p style="margin-bottom: 0.2em" id="description"></p>
-				<div class="d-flex justify-content-between flex-wrap">
-					<small style="margin-bottom: 0.2em" id="author"></small>
-					<div class="d-flex flex-nowrap ml-auto">
-						<span class="ml-2">
-							<button type="button" class="btn btn-primary" onclick="" id="detailsButton">Details</button>
-						</span>
-						<span class="mr-1 ml-1" id="upSpan">
-							<button type="button" id="upButton" class="btn btn" onclick="" style="width: 5em;"></button>
-						</span>
-						<span id="downSpan">
-							<button type="button" id="downButton" class="btn btn" onclick="" style="width: 5em;"></button>
-						</span>
-					</div>
-				</div>
-				<div class="alert alert-primary mt-3" role="alert" id="devresp"></div>
-			</li>
-		</template>
+        <template id="requestTemplate">
+            <li class="list-group-item request" id="">
+                <div class="d-flex w-100 justify-content-between">
+                    <div>
+                        <h5 class="mb-1" id="title"></h5>
+                    </div>
+                    <small class="text-nowrap" id="smallText" style="text-align: right;"></small>
+                </div>
+                <p style="margin-bottom: 0.2em" id="description"></p>
+                <div class="d-flex justify-content-between flex-wrap">
+                    <small style="margin-bottom: 0.2em" id="author"></small>
+                    <div class="d-flex flex-nowrap ml-auto">
+                        <span class="ml-2">
+                            <button type="button" class="btn btn-primary" onclick="" id="detailsButton">Details</button>
+                        </span>
+                        <span class="mr-1 ml-1" id="upSpan">
+                            <button type="button" id="upButton" class="btn btn" onclick="" style="width: 5em;"></button>
+                        </span>
+                        <span id="downSpan">
+                            <button type="button" id="downButton" class="btn btn" onclick="" style="width: 5em;"></button>
+                        </span>
+                    </div>
+                </div>
+                <div class="alert alert-primary mt-3" role="alert" id="devresp"></div>
+            </li>
+        </template>
 
-		{% if admin %}
-		<script type="text/javascript">
-			function status(id, target) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.responseText == "OK") {
-						updateSingleRequest(id);
-						console.log("success");
-					}
-				}
-				xhttp.open("POST", "/api/status?id="+id+"&target="+target, true);
-				xhttp.send();
-				console.log("updating status");
-			}
-			function mode(id, target) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.responseText == "OK") {
-						updateSingleRequest(id);
-						console.log("success");
-					}
-				}
-				xhttp.open("POST", "/api/mode?id="+id+"&target="+target, true);
-				xhttp.send();
-				console.log("updating mode");
-			}
-			function remove(id) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.responseText == "OK") {
-						updateSingleRequest(id);
-						console.log("success");
-					}
-				}
-				xhttp.open("POST", "/api/remove?id="+id, true);
-				xhttp.send();
-				console.log("removing");
-			}
-			function devresp(id, resp) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.responseText == "OK") {
-						updateSingleRequest(id);
-						console.log("success");
-					}
-				}
+        {% if admin %}
+        <script type="text/javascript">
+            function status(id, target) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(id);
+                        console.log("success");
+                    }
+                }
+                xhttp.open("POST", "/api/status?id="+id+"&target="+target, true);
+                xhttp.send();
+                console.log("updating status");
+            }
+            function mode(id, target) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(id);
+                        console.log("success");
+                    }
+                }
+                xhttp.open("POST", "/api/mode?id="+id+"&target="+target, true);
+                xhttp.send();
+                console.log("updating mode");
+            }
+            function remove(id) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(id);
+                        console.log("success");
+                    }
+                }
+                xhttp.open("POST", "/api/remove?id="+id, true);
+                xhttp.send();
+                console.log("removing");
+            }
+            function devresp(id, resp) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(id);
+                        console.log("success");
+                    }
+                }
 
-				data = new FormData
-				data.append("id", id)
-				data.append("devresp", resp)
+                data = new FormData
+                data.append("id", id)
+                data.append("devresp", resp)
 
-				xhttp.open("POST", "/api/devresp", true);
-				xhttp.send(data);
-				console.log("responding");
-			}
-		</script>
-		{% endif %}
-		{% if username is defined %}
-		<script type="text/javascript">
-			function flip(i) {
-				if (i) {return 0} else {return 1}
-			}
+                xhttp.open("POST", "/api/devresp", true);
+                xhttp.send(data);
+                console.log("responding");
+            }
+        </script>
+        {% endif %}
+        {% if username is defined %}
+        <script type="text/javascript">
+            function flip(i) {
+                if (i) {return 0} else {return 1}
+            }
 
-			function vote(id, target, up) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.responseText == "OK") {
-						updateSingleRequest(id);
-						console.log("success");
-					}
-				}
-				xhttp.open("POST", "/api/vote?id="+id+"&target="+flip(target)+"&up="+up, true);
-				xhttp.send();
-				console.log("voting");
-			}
-		</script>
-		{% else %}
-		<script type="text/javascript">
-			function vote(id, target, up) {
-				window.location.href = "/login";
-			}
-		</script>
-		{% endif %}
+            function vote(id, target, up) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(id);
+                        console.log("success");
+                    }
+                }
+                xhttp.open("POST", "/api/vote?id="+id+"&target="+flip(target)+"&up="+up, true);
+                xhttp.send();
+                console.log("voting");
+            }
+        </script>
+        {% else %}
+        <script type="text/javascript">
+            function vote(id, target, up) {
+                window.location.href = "/login";
+            }
+        </script>
+        {% endif %}
 
-		<script type="text/javascript">
+        <script type="text/javascript">
 
-			var sort = 0;
-			var filter = 0;
-			var requestList = {};
+            var sort = 0;
+            var filter = 0;
+            var requestList = {};
 
-			function createRequestsFromJson(data) {
-				data = JSON.parse(data);
-				requestList = data;
-				$(".request").remove()
-				Object.values(data).forEach(function (request) {
-					template = createRequest(request)
-					$("#requestList").append(template);
-				});
-			}
+            function createRequestsFromJson(data) {
+                data = JSON.parse(data);
+                requestList = data;
+                $(".request").remove()
+                Object.values(data).forEach(function (request) {
+                    template = createRequest(request)
+                    $("#requestList").append(template);
+                });
+            }
 
-			function createRequest(request) {
-				var template = $($("#requestTemplate").clone().prop("content"));
-					
-					template.find("li")[0].attributes["class"].value += [""," list-group-item-warning"," list-group-item-danger"," list-group-item-success"," list-group-item-secondary"][request.statusCode];
-					template.find("#title")[0].innerHTML = request.title;
-					template.find("#smallText")[0].innerHTML = request.date + "<br/>" + ((request.status == "Open") ? "Status: " + request.status : "<b>Status: " + request.status + "</b>");
-					template.find("#description")[0].innerHTML = request.description;
-					template.find("#author")[0].innerHTML = request.author;
+            function createRequest(request) {
+                var template = $($("#requestTemplate").clone().prop("content"));
+                    
+                    template.find("li")[0].attributes["class"].value += [""," list-group-item-warning"," list-group-item-danger"," list-group-item-success"," list-group-item-secondary"][request.statusCode];
+                    template.find("#title")[0].innerHTML = request.title;
+                    template.find("#smallText")[0].innerHTML = request.date + "<br/>" + ((request.status == "Open") ? "Status: " + request.status : "<b>Status: " + request.status + "</b>");
+                    template.find("#description")[0].innerHTML = request.description;
+                    template.find("#author")[0].innerHTML = request.author;
 
-					if (request.vote.upDiscord || request.self) {
-						var attr = document.createAttribute("data-toggle");
-						attr.value = "tooltip";
-						template.find("#upSpan")[0].setAttributeNode(attr);
+                    if (request.vote.upDiscord || request.self) {
+                        var attr = document.createAttribute("data-toggle");
+                        attr.value = "tooltip";
+                        template.find("#upSpan")[0].setAttributeNode(attr);
 
-						var attr = document.createAttribute("data-placement");
-						attr.value = "bottom";
-						template.find("#upSpan")[0].setAttributeNode(attr);
+                        var attr = document.createAttribute("data-placement");
+                        attr.value = "bottom";
+                        template.find("#upSpan")[0].setAttributeNode(attr);
 
-						var attr = document.createAttribute("title");
-						attr.value = (request.self) ? "You cannot vote for yourself." : "This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #echovr-feature-request channel.";
-						template.find("#upSpan")[0].setAttributeNode(attr);
-					}
+                        var attr = document.createAttribute("title");
+                        attr.value = (request.self) ? "You cannot vote for yourself." : "This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #echovr-feature-request channel.";
+                        template.find("#upSpan")[0].setAttributeNode(attr);
+                    }
 
-					upButton = template.find("#upButton")[0]
-					upButton.attributes["class"].value += (!request.vote.up) ? "-outline-success" : "-success";
-					upButton.attributes["onclick"].value = "vote('" + request.mid + "', " + request.vote.up + ", 1);";
-					upButton.attributes["style"].value += (request.vote.upDiscord || request.self) ? "pointer-events: none;" : "";
-					upButton.disabled = (request.vote.upDiscord || request.self);
-					upButton.innerHTML = request.up + " &#x1F44D;";
+                    upButton = template.find("#upButton")[0]
+                    upButton.attributes["class"].value += (!request.vote.up) ? "-outline-success" : "-success";
+                    upButton.attributes["onclick"].value = "vote('" + request.mid + "', " + request.vote.up + ", 1);";
+                    upButton.attributes["style"].value += (request.vote.upDiscord || request.self) ? "pointer-events: none;" : "";
+                    upButton.disabled = (request.vote.upDiscord || request.self);
+                    upButton.innerHTML = request.up + " &#x1F44D;";
 
-					if (request.vote.downDiscord || request.self) {
-						var attr = document.createAttribute("data-toggle");
-						attr.value = "tooltip";
-						template.find("#downSpan")[0].setAttributeNode(attr);
+                    if (request.vote.downDiscord || request.self) {
+                        var attr = document.createAttribute("data-toggle");
+                        attr.value = "tooltip";
+                        template.find("#downSpan")[0].setAttributeNode(attr);
 
-						var attr = document.createAttribute("data-placement");
-						attr.value = "bottom";
-						template.find("#downSpan")[0].setAttributeNode(attr);
+                        var attr = document.createAttribute("data-placement");
+                        attr.value = "bottom";
+                        template.find("#downSpan")[0].setAttributeNode(attr);
 
-						var attr = document.createAttribute("title");
-						attr.value = (request.self) ? "You cannot vote for yourself." : "This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #echovr-feature-request channel.";
-						template.find("#downSpan")[0].setAttributeNode(attr);
-					}
+                        var attr = document.createAttribute("title");
+                        attr.value = (request.self) ? "You cannot vote for yourself." : "This vote has been placed from discord. If you want to remove the vote from this suggestion please do so on discord in the #echovr-feature-request channel.";
+                        template.find("#downSpan")[0].setAttributeNode(attr);
+                    }
 
-					downButton = template.find("#downButton")[0]
-					downButton.attributes["class"].value += (!request.vote.down) ? "-outline-danger" : "-danger";
-					downButton.attributes["onclick"].value = "vote('" + request.mid + "', " + request.vote.down + ", 0);";
-					downButton.attributes["style"].value += (request.vote.downDiscord || request.self) ? "pointer-events: none;" : "";
-					downButton.disabled = (request.vote.downDiscord || request.self);
-					downButton.innerHTML = request.down + " &#x1F44E;";
+                    downButton = template.find("#downButton")[0]
+                    downButton.attributes["class"].value += (!request.vote.down) ? "-outline-danger" : "-danger";
+                    downButton.attributes["onclick"].value = "vote('" + request.mid + "', " + request.vote.down + ", 0);";
+                    downButton.attributes["style"].value += (request.vote.downDiscord || request.self) ? "pointer-events: none;" : "";
+                    downButton.disabled = (request.vote.downDiscord || request.self);
+                    downButton.innerHTML = request.down + " &#x1F44E;";
 
-					template.find("#detailsButton")[0].attributes["onclick"].value = "detailsModal('" + request.mid + "');";
+                    template.find("#detailsButton")[0].attributes["onclick"].value = "detailsModal('" + request.mid + "');";
 
-					template.find("#devresp")[0].innerHTML = request.devresp;
-					if (request.devresp == "") {template.find("#devresp")[0].remove()}
+                    template.find("#devresp")[0].innerHTML = request.devresp;
+                    if (request.devresp == "") {template.find("#devresp")[0].remove()}
 
-					var attr = document.createAttribute("data-sort");
-					attr.value = request.up - request.down;
-					template.find("li")[0].setAttributeNode(attr);
+                    var attr = document.createAttribute("data-sort");
+                    attr.value = request.up - request.down;
+                    template.find("li")[0].setAttributeNode(attr);
 
-					var attr = document.createAttribute("data-age");
-					attr.value = request.timestamp;
-					template.find("li")[0].setAttributeNode(attr);
+                    var attr = document.createAttribute("data-age");
+                    attr.value = request.timestamp;
+                    template.find("li")[0].setAttributeNode(attr);
 
-					template.find("li")[0].attributes["id"].value = request.mid;
-					return template
-			}
+                    template.find("li")[0].attributes["id"].value = request.mid;
+                    return template
+            }
 
-			function sortFuncVotes(a,b) {
-				var aval = $(a).data("sort")
-				var bval = $(b).data("sort")
-				if (aval == bval) {
-					return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
-				}
-				return bval - aval
-			}
+            function sortFuncVotes(a,b) {
+                var aval = $(a).data("sort")
+                var bval = $(b).data("sort")
+                if (aval == bval) {
+                    return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
+                }
+                return bval - aval
+            }
 
-			function sortFuncNegativeVotes(a,b) {
-				var aval = $(a).data("sort")
-				var bval = $(b).data("sort")
-				if (aval == bval) {
-					return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
-				}
-				return aval - bval
-			}
+            function sortFuncNegativeVotes(a,b) {
+                var aval = $(a).data("sort")
+                var bval = $(b).data("sort")
+                if (aval == bval) {
+                    return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
+                }
+                return aval - bval
+            }
 
-			function sortFuncNew(a,b) {
-				var aval = $(a).data("age")
-				var bval = $(b).data("age")
-				if (aval == bval) {
-					return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
-				}
-				return bval - aval
-			}
+            function sortFuncNew(a,b) {
+                var aval = $(a).data("age")
+                var bval = $(b).data("age")
+                if (aval == bval) {
+                    return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
+                }
+                return bval - aval
+            }
 
-			function sortFuncOld(a,b) {
-				var aval = $(a).data("age")
-				var bval = $(b).data("age")
-				if (aval == bval) {
-					return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
-				}
-				return aval - bval
-			}
+            function sortFuncOld(a,b) {
+                var aval = $(a).data("age")
+                var bval = $(b).data("age")
+                if (aval == bval) {
+                    return ($(a).find("#title")[0].innerHTML.toLowerCase() > $(b).find("#title")[0].innerHTML.toLowerCase()) ? 1 : -1
+                }
+                return aval - bval
+            }
 
-			function sortRequests() {
-				var sortFunc = undefined;
-				switch (sort) {
-					case 0: sortFunc = sortFuncVotes; break;
-					case 1: sortFunc = sortFuncNegativeVotes; break;
-					case 2: sortFunc = sortFuncNew; break;
-					case 3: sortFunc = sortFuncOld; break;
-				}
-				var res = $(".request").sort(sortFunc);
-				$(".request").remove();
-				res.each( function (req, entry) {
-					$("#requestList").append(entry);
-				})
-			}
+            function sortRequests() {
+                var sortFunc = undefined;
+                switch (sort) {
+                    case 0: sortFunc = sortFuncVotes; break;
+                    case 1: sortFunc = sortFuncNegativeVotes; break;
+                    case 2: sortFunc = sortFuncNew; break;
+                    case 3: sortFunc = sortFuncOld; break;
+                }
+                var res = $(".request").sort(sortFunc);
+                $(".request").remove();
+                res.each( function (req, entry) {
+                    $("#requestList").append(entry);
+                })
+            }
 
-			function filterRequests() {
-				$(".request").prop("style", "");
-				$(".request").filter(function (index) {
-					switch (filter) { //inverse checks, since matches will be removed
-						case 0: return false; break;
-						case 1: return requestList[this.attributes["id"].value].statusCode != 1; break;
-						case 2: return requestList[this.attributes["id"].value].statusCode != 3; break;
-						case 3: return requestList[this.attributes["id"].value].statusCode != 2; break;
-						case 4: return requestList[this.attributes["id"].value].statusCode != 0; break;
-						case 5: return this.attributes["data-sort"].value < 0; break;
-						case 6: return this.attributes["data-sort"].value > 0; break;
-						case 7: return requestList[this.attributes["id"].value].statusCode != 4; break;
-						case 8: return requestList[this.attributes["id"].value].devresp == ""; break;
-						case 9: return !requestList[this.attributes["id"].value].self; break;
-					}
-				}).prop("style", "Display: None");
-			}
+            function filterRequests() {
+                $(".request").prop("style", "");
+                $(".request").filter(function (index) {
+                    switch (filter) { //inverse checks, since matches will be removed
+                        case 0: return false; break;
+                        case 1: return requestList[this.attributes["id"].value].statusCode != 1; break;
+                        case 2: return requestList[this.attributes["id"].value].statusCode != 3; break;
+                        case 3: return requestList[this.attributes["id"].value].statusCode != 2; break;
+                        case 4: return requestList[this.attributes["id"].value].statusCode != 0; break;
+                        case 5: return this.attributes["data-sort"].value < 0; break;
+                        case 6: return this.attributes["data-sort"].value > 0; break;
+                        case 7: return requestList[this.attributes["id"].value].statusCode != 4; break;
+                        case 8: return requestList[this.attributes["id"].value].devresp == ""; break;
+                        case 9: return !requestList[this.attributes["id"].value].self; break;
+                    }
+                }).prop("style", "Display: None");
+            }
 
-			function updateRequests() {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.readyState == 4 && this.status == 200) {
-						createRequestsFromJson(this.responseText);
-						sortRequests();
-						filterRequests();
-						$(function () {
-							$('[data-toggle="tooltip"]').tooltip();
-						})
-					}
-				};
-				xhttp.open("GET", "/api/requests?request="+id, true);
-				xhttp.send();
-			}
+            function updateRequests() {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        createRequestsFromJson(this.responseText);
+                        sortRequests();
+                        filterRequests();
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip();
+                        })
+                    }
+                };
+                xhttp.open("GET", "/api/requests?request="+id, true);
+                xhttp.send();
+            }
 
-			function updateSingleRequest(id) {
-				var xhttp = new XMLHttpRequest();
-				xhttp.onreadystatechange = function() {
-					if (this.readyState == 4 && this.status == 200) {
-						data = JSON.parse(this.responseText);
-						template = createRequest(data[id]);
-						index = $("#"+id).index();
-						$("#requestList > li:nth-child("+(index+1)+")").after(template);
-						$("#"+id)[0].remove();
-						sortRequests();
-						filterRequests();
-						requestList[id] = data[id];
-						$(function () {
-							$('[data-toggle="tooltip"]').tooltip();
-						})
-					}
-				};
-				xhttp.open("GET", "/api/requests?request="+id, true);
-				xhttp.send();
-			}
+            function updateSingleRequest(id) {
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        data = JSON.parse(this.responseText);
+                        template = createRequest(data[id]);
+                        index = $("#"+id).index();
+                        $("#requestList > li:nth-child("+(index+1)+")").after(template);
+                        $("#"+id)[0].remove();
+                        sortRequests();
+                        filterRequests();
+                        requestList[id] = data[id];
+                        $(function () {
+                            $('[data-toggle="tooltip"]').tooltip();
+                        })
+                    }
+                };
+                xhttp.open("GET", "/api/requests?request="+id, true);
+                xhttp.send();
+            }
 
-			function detailsModal(id) {
+            function detailsModal(id) {
 
-				$("#details").remove();
-				$("body").prepend($($("#modalTemplate").clone().prop("content")));
+                $("#details").remove();
+                $("body").prepend($($("#modalTemplate").clone().prop("content")));
 
-				request = requestList[id];
-				modal = $("#details")
-				if (request == undefined) {return;}
+                request = requestList[id];
+                modal = $("#details")
+                if (request == undefined) {return;}
 
-				modal.find("#title")[0].innerHTML = request.title;
+                modal.find("#title")[0].innerHTML = request.title;
 
-				modes = {"":"None", "ea":"Echo Arena", "ec":"Echo Combat", "n/a":"Not Applicable"}
+                modes = {"":"None", "ea":"Echo Arena", "ec":"Echo Combat", "n/a":"Not Applicable"}
 
-				modal.find(".modal-body")[0].innerHTML = modal.find(".modal-body")[0].innerHTML
-				.replace("$author", request.author)
-				.replace("$time", request.time)
-				.replace("$status", request.status)
-				.replace("$mode", modes[request.mode])
-				.replace("$description", request.description)
-				.replace("$points", request.up - request.down)
-				.replace("$upvotes", request.up)
-				.replace("$downvotes", request.down)
-				.replace("$devresp", request.devresp);
+                modal.find(".modal-body")[0].innerHTML = modal.find(".modal-body")[0].innerHTML
+                .replace("$author", request.author)
+                .replace("$time", request.time)
+                .replace("$status", request.status)
+                .replace("$mode", modes[request.mode])
+                .replace("$description", request.description)
+                .replace("$points", request.up - request.down)
+                .replace("$upvotes", request.up)
+                .replace("$downvotes", request.down)
+                .replace("$devresp", request.devresp);
 
-				modal.find(".modal-footer")[0].innerHTML = modal.find(".modal-footer")[0].innerHTML
-				.split("request.mid").join(request.mid);
+                modal.find(".modal-footer")[0].innerHTML = modal.find(".modal-footer")[0].innerHTML
+                .split("request.mid").join(request.mid);
 
-				// modal.find("#shareButton")[0].attributes["onclick"].value = modal.find("#shareButton")[0].attributes["onclick"].value
-				// .replace("request.mid", request.mid);
+                // modal.find("#shareButton")[0].attributes["onclick"].value = modal.find("#shareButton")[0].attributes["onclick"].value
+                // .replace("request.mid", request.mid);
 
-				// modal.find(".dropdown-item").toArray().forEach(function (item) {
-				// 	item.attributes["onclick"].value = item.attributes["onclick"].value
-				// 	.replace("request.mid", request.mid);
-				// });
+                // modal.find(".dropdown-item").toArray().forEach(function (item) {
+                // 	item.attributes["onclick"].value = item.attributes["onclick"].value
+                // 	.replace("request.mid", request.mid);
+                // });
 
-				{% if admin %}
-				modal.find("#devresp")[0].innerHTML = request.status;
-				{% endif %}
+                {% if admin %}
+                modal.find("#devresp")[0].innerHTML = request.status;
+                {% endif %}
 
-				modal.modal();
-			}
+                modal.modal();
+            }
 
-			id = window.location.href.substr(window.location.href.lastIndexOf('/') + 1);
-			if (isNaN(id)) id = "null";
-			if (id == "") id = "null";
+            id = window.location.href.substr(window.location.href.lastIndexOf('/') + 1);
+            if (isNaN(id)) id = "null";
+            if (id == "") id = "null";
 
-			updateRequests();
+            updateRequests();
 
-		</script>
+        </script>
 
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 
-		{% if submit is not none %}
-		<script type="text/javascript">
-			$("#requestmodal").modal();
-		</script>
-		{% endif %}
-	</body>
+        {% if submit is not none %}
+        <script type="text/javascript">
+            $("#requestmodal").modal();
+        </script>
+        {% endif %}
+    </body>
 </html>
