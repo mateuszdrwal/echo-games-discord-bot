@@ -506,9 +506,9 @@ async def on_message(message):
         c.execute("DELETE FROM esl WHERE uid = :uid", {"uid": message.author.id})
         await message.author.dm_channel.send("Your discord account is no longer linked to your ESL account.")
 
-    if message.content.startswith("!map"):
-        with open("maps.pickle", "rb") as f:
-            await message.channel.send(random.choice(pickle.load(f)))
+    #if message.content.startswith("!map"):
+    #    with open("maps.pickle", "rb") as f:
+    #        await message.channel.send(random.choice(pickle.load(f)))
     
     if message.content.startswith("!options") and (discord.utils.find(lambda r: r.name == "Event Managers", message.author.roles) or message.author.id == 140504440930041856):
         items = message.content.split()[1:]
@@ -878,7 +878,7 @@ async def on_error(event, *args, **kwargs):
     await client.wait_until_ready()
     await asyncio.sleep(1)
     err = sys.exc_info()
-    await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
+    # await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
     logger.warn("".join(traceback.format_tb(err[2])),err[1].args[0])
 
 async def startup():
@@ -892,10 +892,10 @@ async def startup():
 client.loop.create_task(startup())
 client.loop.create_task(loop())
 client.loop.create_task(backup())
-client.loop.create_task(cupTask(419202299991425024,"EU_ea","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0"))
-client.loop.create_task(cupTask(419202299991425024,"NA_ea","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na-portal&includeHidden=0"))
-client.loop.create_task(cupTask(419202299991425024,"EU_ec","/play/v1/leagues?&states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-eu-portal&includeHidden=0"))
-client.loop.create_task(cupTask(419202299991425024,"NA_ec","/play/v1/leagues?states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-na-portal&includeHidden=0"))
+# client.loop.create_task(cupTask(419202299991425024,"EU_ea","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0"))
+# client.loop.create_task(cupTask(419202299991425024,"NA_ea","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na-portal&includeHidden=0"))
+# client.loop.create_task(cupTask(419202299991425024,"EU_ec","/play/v1/leagues?&states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-eu-portal&includeHidden=0"))
+# client.loop.create_task(cupTask(419202299991425024,"NA_ec","/play/v1/leagues?states={}&path=%2Fplay%2Fechocombat%2F&portals=&tags=vrlechocombat-na-portal&includeHidden=0"))
 #client.loop.create_task(errorCatcher(cupTask(377230334288330753,"EU","/play/v1/leagues?&states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-eu-portal&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(350354518502014976,"NA","/play/v1/leagues?states={}&path=%2Fplay%2Fechoarena%2F&portals=&tags=vrlechoarena-na&includeHidden=0")))
 #client.loop.create_task(errorCatcher(cupTask(390482469469552643,"TEST","/play/v1/leagues?states={}"))) #testing
