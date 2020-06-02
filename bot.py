@@ -852,14 +852,16 @@ async def requestImage(url):
 @client.event
 async def on_ready():
     global requestChannel, guild, errorChannel, mateuszdrwal
+
+    await client.wait_until_ready()
     
     logger.debug(client.user.name)
     logger.debug(client.user.id)
 
-    requestChannel = client.get_channel(403335187062194188)
-    errorChannel = client.get_channel(424701844942618634)
-    mateuszdrwal = client.get_user(140504440930041856)
-    guild = client.get_guild(326412222119149578)
+    requestChannel = await client.fetch_channel(403335187062194188)
+    errorChannel = await client.fetch_channel(424701844942618634)
+    mateuszdrwal = await client.fetch_user(140504440930041856)
+    guild = await client.fetch_guild(326412222119149578)
 
     await client.change_presence(activity=discord.Activity(name='Echo Combat',type=discord.ActivityType.streaming))
 
