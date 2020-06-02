@@ -859,7 +859,7 @@ async def on_ready():
     logger.debug(client.user.id)
 
     requestChannel = await client.fetch_channel(403335187062194188)
-    errorChannel = await client.fetch_channel(424701844942618634)
+    # errorChannel = await client.fetch_channel(424701844942618634)
     mateuszdrwal = await client.fetch_user(140504440930041856)
     guild = await client.fetch_guild(326412222119149578)
 
