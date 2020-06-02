@@ -1081,10 +1081,7 @@ async def vote(request):
         await updateRequest(await requestChannel.fetch_message(request.query["id"]))
         logger.info("%s %svoted %s setting %svote"%(session["username"], "" if int(request.query["target"]) else "un", request.query["id"], "up" if int(request.query["up"]) else "down"))
         return web.Response(text="OK")
-    except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
-    except ValueError:
+    except (ValueError, AssertionError):
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
 
@@ -1133,11 +1130,7 @@ async def devresp(request):
         int(data["id"])
         c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": data["id"]})
         assert c.fetchall() != []
-    except AssertionError:
-        logger.warning("%s is being suspicious with data:"%who(session, request))
-        logger.debug(data)
-        return web.HTTPBadRequest()
-    except ValueError:
+    except (ValueError, AssertionError):
         logger.warning("%s is being suspicious with data:"%who(session, request))
         logger.debug(data)
         return web.HTTPBadRequest()
@@ -1157,10 +1150,7 @@ async def remove(request):
         int(request.query["id"])
         assert "username" in session
         assert session["admin"]
-    except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
-    except ValueError:
+    except (ValueError, AssertionError):
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
 
@@ -1180,10 +1170,7 @@ async def status(request):
         assert session["admin"]
         int(request.query["target"])
         assert 0 <= int(request.query["target"]) < 5
-    except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
-    except ValueError:
+    except (ValueError, AssertionError):
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
 
@@ -1202,10 +1189,7 @@ async def mode(request):
         assert "username" in session
         assert session["admin"]
         assert request.query["target"] in ["ea","ec","n/a"]
-    except AssertionError:
-        logger.warning("%s is being suspicious"%who(session, request))
-        return web.HTTPBadRequest()
-    except ValueError:
+    except (ValueError, AssertionError):
         logger.warning("%s is being suspicious"%who(session, request))
         return web.HTTPBadRequest()
 
