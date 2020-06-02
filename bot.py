@@ -880,6 +880,7 @@ async def on_error(event, *args, **kwargs):
     await client.wait_until_ready()
     await asyncio.sleep(1)
     err = sys.exc_info()
+    sentry_sdk.capture_exception()
     # await errorChannel.send("%s\n```%s\n\n%s```"%(mateuszdrwal.mention,"".join(traceback.format_tb(err[2])),err[1].args[0]))
     logger.warn("".join(traceback.format_tb(err[2])),err[1].args[0])
 
