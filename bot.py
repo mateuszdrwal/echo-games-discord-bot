@@ -1054,7 +1054,7 @@ async def vote(request):
         session = await get_session(request)
         if session.get("username") == None: return web.HTTPFound("/login") #redirect if not logged in
         assert "id" in request.query and "target" in request.query and "up" in request.query #all queries are present
-        assert len(request.query["id"]) == 18 and request.query["target"] in ["0","1"] and request.query["up"] in ["0","1"] #query data is valid
+        assert (18 <= len(request.query["id"]) <= 19) and request.query["target"] in ["0","1"] and request.query["up"] in ["0","1"] #query data is valid
         c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": request.query["id"]})
         fetched = c.fetchall()
         assert fetched != [] #request exists
@@ -1146,7 +1146,7 @@ async def remove(request):
     session = await get_session(request)
     try:
         assert "id" in request.query
-        assert len(request.query["id"]) == 18
+        assert (18 <= len(request.query["id"]) <= 19)
         int(request.query["id"])
         assert "username" in session
         assert session["admin"]
@@ -1164,7 +1164,7 @@ async def status(request):
     session = await get_session(request)
     try:
         assert "id" in request.query and "target" in request.query
-        assert len(request.query["id"]) == 18
+        assert (18 <= len(request.query["id"]) <= 19)
         int(request.query["id"])
         assert "username" in session
         assert session["admin"]
@@ -1184,7 +1184,7 @@ async def mode(request):
     session = await get_session(request)
     try:
         assert "id" in request.query and "target" in request.query
-        assert len(request.query["id"]) == 18
+        assert (18 <= len(request.query["id"]) <= 19)
         int(request.query["id"])
         assert "username" in session
         assert session["admin"]
