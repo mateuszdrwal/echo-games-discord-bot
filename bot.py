@@ -186,6 +186,9 @@ async def updateRequest(message):
 
         elif reaction.emoji == "\U0001f44e":
             async for user in reaction.users():
+                
+                if user == client.user:
+                    continue
 
                 if reaction.message.author.bot:
                     if reaction.message.mentions[0].id == user.id:
@@ -211,6 +214,10 @@ async def updateRequest(message):
             
         elif reaction.emoji in ["\U0001f44d","\U0001F60D","\u2764","\u261D","\U0001F446","\U0001F44C","\U0001F4AF",u"\N{WHITE HEAVY CHECK MARK}"]:
             async for user in reaction.users():
+
+                if user == client.user:
+                    continue
+                
                 if reaction.message.author.bot:
                     if reaction.message.mentions[0].id == user.id:
                         continue
@@ -382,7 +389,7 @@ async def loop():
     await client.wait_until_ready()
     await asyncio.sleep(1)
 
-    async for message in requestChannel.history(limit=None, oldest_first=True):
+    async for message in requestChannel.history(limit=None, oldest_first=False):
         await analyzeMessage(message)
 
     logger.info("initial update done")
@@ -1197,6 +1204,59 @@ async def mode(request):
     conn.commit()
     logger.info("%s updated mode of %s to %s"%(session["username"], request.query["id"], request.query["target"]))
     return web.Response(text="OK")
+
+@routes.post("/api/merge")
+async def merge(request):
+    data = await request.post()
+    session = await get_session(request)
+    try:
+        assert "id" in data and "id_from" in data
+        assert (18 <= len(data["id"]) <= 19)
+        assert (18 <= len(data["id_from"]) <= 19)
+        int(data["id"])
+        int(data["id_from"])
+        assert int(data["id"]) != int(data["id_from"])
+        assert "username" in session
+        assert session["admin"]
+    except (ValueError, AssertionError):
+        logger.warning("%s is being suspicious"%who(session, request))
+        return web.HTTPBadRequest()
+
+    logger.info("backing up before merge...")
+    Popen(["cp", "requests.db", "backups/backup-%s-BEFORE-MERGE.db"%round(time.time())])
+    await asyncio.sleep(2) # quick and dirty, cant be bothered to wait for the backup properly
+
+    c.execute("SELECT * FROM votes WHERE mid = :mid", {"mid": data["id"]})
+    fetched = c.fetchall()
+    current_votes = {i[1]: {"up": i[2], "down": i[3], "upDiscord": i[4], "downDiscord": i[5]} for i in fetched}
+
+    c.execute("SELECT * FROM votes WHERE mid = :mid", {"mid": data["id_from"]})
+    fetched = c.fetchall()
+
+    for old_vote in fetched:
+        if old_vote[1] in current_votes:
+            c.execute("UPDATE votes SET up = :up, down = :down, upDiscord = :upDiscord, downDiscord = :downDiscord WHERE mid = :mid AND uid = :uid", {"up": int(current_votes[old_vote[1]]["up"] or old_vote[2]), "down": int(current_votes[old_vote[1]]["down"] or old_vote[3]), "upDiscord": int(current_votes[old_vote[1]]["up"] and current_votes[old_vote[1]]["upDiscord"]), "downDiscord": int(current_votes[old_vote[1]]["down"] and current_votes[old_vote[1]]["downDiscord"]), "mid": data["id"], "uid": old_vote[1]})
+        else:
+            c.execute("INSERT INTO votes VALUES (:mid, :uid, :up, :down, 0, 0)", {"up": old_vote[2], "down": old_vote[3], "mid": data["id"], "uid": old_vote[1]})
+
+    c.execute("UPDATE requests SET disabled = 1 WHERE mid = :mid", {"mid": data["id_from"]})
+    conn.commit()
+
+    await updateRequest(await requestChannel.fetch_message(data["id"]))
+
+    logger.info("%s merged %s into %s"%(session["username"], data["id_from"], data["id"]))
+    return web.Response(text="OK")
+
+# if fetched == []:
+#             if int(request.query["up"]):
+#                 c.execute("INSERT INTO votes VALUES (:mid, :uid, :target, 0, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+#             else:
+#                 c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, :target, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+#         else:
+#             if int(request.query["up"]):
+#                 c.execute("UPDATE votes SET up = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
+#             else:
+#                 c.execute("UPDATE votes SET down = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
 
 @routes.get("/robots.txt")
 async def robots(request):

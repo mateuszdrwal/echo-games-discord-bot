@@ -119,8 +119,9 @@
                     <li><p>Change the status of all requests. Overrides any status set from discord if it's anything other than Open. This is done in the details popup.</p></li>
                     <li><p>Remove any request. This is semi-permanent, you will have to contact me if you want to reverse it. This is also done in the details popup.</p></li>
                     <li><p>Add a developer response to any request. Your name will be visible on it. Again, semi-permanent, contact me to reverse. Also, you guessed it, this is also done in the details popup.</p></li>
+                    <li><p>NEW: Merging requests. If you find a duplicate request, you can merge it into the one it duplicates using the details popup. All current votes from the duplicate request will be moved to the request it is merged into, and the duplicate is automatically removed. All future votes through discord on the duplicate are ignored. This operation is a pain to reverse, so make sure you are certain before merging. With two requests that duplicate each other, it's not that important which one gets merged into which, but I would say the best option is keeping the more descriptive one or the one with significantly more votes.</p></li>
                 </ul>
-                <p>Remember that these functions are all also available on discord:</p>
+                <p>Remember that most of these functions are also available on discord:</p>
                 <ul>
                     <li><p>React on the message with &#128467;, &#9989;, &#10060; or nothing to set the request to planned, implemented, rejected or open respectively.</p></li>
                     <li><p>React on the message with &#9940; to remove it from this website and the spreadsheet.</p></li>
@@ -210,6 +211,7 @@
                             </span>
                             <button type="button" class="btn btn-primary mb-3" data-dismiss="modal" onclick="var resp = prompt('type your respone here'); if (resp != null) {devresp('request.mid', resp);}">Add developer response</button>
                             <button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="if (confirm('Are you sure you want to remove this request?')) {remove('request.mid')}">Remove request</button>
+                            <button type="button" class="btn btn-danger mb-3" data-dismiss="modal" onclick="merge()">Merge requests (WIP, DO NOT USE)</button>
                         {% endif %}
                         </div>
                     </div>
@@ -299,6 +301,44 @@
                 xhttp.send(data);
                 console.log("responding");
             }
+            function merge(id, id_from) {
+                
+                var resp = prompt('In the box below, paste the direct link to the request which should be merged into this one. All votes from the linked request will be transfered into this one and the linked request will be automatically removed.');
+                var matches = resp.match(/(\d{16,20})/);
+
+                if (matches == null) {
+                    alert("Could not extract request id from the link.");
+                    return;
+                }
+
+                var from_request = requestList[matches[1]];
+                
+                if (from_request == undefined) {
+                    alert("Could not find that request.");
+                    return;
+                }
+
+                if (!confirm('Are you sure you want to move the votes from the "' + from_request["title"] + '" request to this one and remove that request in the process?')) {
+                    return;
+                }
+
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.responseText == "OK") {
+                        updateSingleRequest(modal_id);
+                        updateSingleRequest(matches[1]);
+                        console.log("success");
+                    }
+                }
+
+                data = new FormData
+                data.append("id", modal_id)
+                data.append("id_from", matches[1])
+
+                xhttp.open("POST", "/api/merge", true);
+                xhttp.send(data);
+                console.log("merging");
+            }
         </script>
         {% endif %}
         {% if username is defined %}
@@ -333,6 +373,7 @@
             var sort = 0;
             var filter = 0;
             var requestList = {};
+            var modal_id;
 
             function createRequestsFromJson(data) {
                 data = JSON.parse(data);
@@ -519,7 +560,7 @@
             }
 
             function detailsModal(id) {
-
+                modal_id = id;
                 $("#details").remove();
                 $("body").prepend($($("#modalTemplate").clone().prop("content")));
 
