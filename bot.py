@@ -22,6 +22,7 @@ import base64
 import html
 import pickle
 import sentry_sdk
+from sentry_sdk.integrations.aiohttp import AioHttpIntegration
 from oauth2client.service_account import ServiceAccountCredentials
 from aiohttp_session import setup, get_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
@@ -32,7 +33,7 @@ from aiohttp import web
 with open("secrets","r") as f:
     secrets = json.loads(f.read())
 
-sentry_sdk.init(secrets["sentry thing"])
+sentry_sdk.init(dsn=secrets["sentry thing"], integrations=[AioHttpIntegration()])
 
 client = discord.Client()
 
@@ -155,13 +156,9 @@ async def updateRequest(message):
     downed = [vote[1] for vote in fetched if vote[3] and vote[5]]
     c.execute("SELECT * FROM requests WHERE mid = :mid", {"mid": message.id})
     fetched = c.fetchall()
-    try:
-        webStatus = bool(fetched[0][13])
-        lastStatus = fetched[0][8]
-    except Exception as e:
-        logger.debug(message)
-        logger.debug(message.content)
-        raise e
+    
+    webStatus = bool(fetched[0][13])
+    lastStatus = fetched[0][8]
 
     if len(message.mentions) == 0:
         member = fakemember()
@@ -1017,10 +1014,10 @@ async def auth(request):
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         response = await post("https://discordapp.com/api/oauth2/token", data, headers)
+        session = await get_session(request)
         assert "access_token" in response
         response = json.loads(await get("https://discordapp.com/api/users/@me", {"Authorization": "Bearer %s"%response["access_token"]}))
         assert "username" in response
-        session = await get_session(request)
         session["username"] = response["username"]
         session["id"] = response["id"]
         session["avatar"] = "https://cdn.discordapp.com/avatars/%s/%s.png?size=32"%(response["id"], response["avatar"])
@@ -1112,10 +1109,10 @@ async def newrequest(request):
     
     user = client.get_user(int(session["id"]))
     message = await requestChannel.send("New request submitted from website by %s:\n\n**Title**: %s\n**Game mode**: %s\n**Description**: %s"%(user.mention, data["title"], {"ea":"Echo Arena", "ec": "Echo Combat", "n/a": "Not Applicable"}.get(data["mode"]), data["description"]))
-    await message.add_reaction("\U0001F44D")
-    await message.add_reaction("\U0001F44E")
     c.execute("INSERT INTO requests VALUES (:created, :author, '', :title, '', :description, 0, 0, 0, :mid, :uid, '', 0, 0, :mode)", {"created": time.time(), "author": "%s#%s"%(user.name, user.discriminator), "title": html.escape(data["title"]), "mode": html.escape(data["mode"]), "description": html.escape(data["description"]), "mid": message.id, "uid": user.id})
     conn.commit()
+    await message.add_reaction("\U0001F44D")
+    await message.add_reaction("\U0001F44E")
     await analyzeMessage(message)
     logger.info("%s created a request titled \"%s\""%(session["username"], data["title"]))
     return web.HTTPFound("/?success=Request%20created%21")
