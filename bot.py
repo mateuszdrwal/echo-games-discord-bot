@@ -76,7 +76,7 @@ async def perm(reaction):
     global guild
     async for user in reaction.users():
         try:
-            member = guild.get_member(user.id)
+            member = await guild.fetch_member(user.id)
             if discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal, member.roles) != None:
                 return True
         except:
@@ -551,7 +551,7 @@ async def on_raw_reaction_add(payload):
     for role in roles:
         if payload.message_id == role["message"] and payload.emoji.name == role["emoji"]:
             await (await (client.get_channel(payload.channel_id)).fetch_message(role["message"])).add_reaction(payload.emoji)
-            member = guild.get_member(payload.user_id)
+            member = await guild.fetch_member(payload.user_id)
             for toRemove in role["removeBefore"]:
                 await member.remove_roles(guild.get_role(toRemove))
             if role["removeOnly"]:
@@ -563,7 +563,7 @@ async def on_raw_reaction_add(payload):
 async def on_raw_reaction_remove(payload):
     for role in roles:
         if payload.message_id == role["message"] and payload.emoji.name == role["emoji"]:
-            member = guild.get_member(payload.user_id)
+            member = await guild.fetch_member(payload.user_id)
             await member.remove_roles(guild.get_role(role["role"]))
 
 @client.event
@@ -672,7 +672,7 @@ async def cupTask(cupChannel, filesuffix, link):
                             user = c.fetchall()
                             if len(user) == 0: continue
                             user = user[0]
-                            member = guild.get_member(user[0])
+                            member = await guild.fetch_member(user[0])
                             if member == None: continue
                             if member.dm_channel == None: await member.create_dm()
 
@@ -1029,7 +1029,7 @@ async def auth(request):
         session["id"] = response["id"]
         session["avatar"] = "https://cdn.discordapp.com/avatars/%s/%s.png?size=32"%(response["id"], response["avatar"])
 
-        member = guild.get_member(int(response["id"]))
+        member = await guild.fetch_member(int(response["id"]))
         if member != None and discord.utils.find(lambda r: r.name == "Moderator" or r.name == "Developer" or member == mateuszdrwal or member.id == 197276995787161600, member.roles) != None:
             session["admin"] = True
             logger.info("admin %s logged in"%response["username"])
