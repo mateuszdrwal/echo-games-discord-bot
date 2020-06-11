@@ -1247,17 +1247,6 @@ async def merge(request):
     logger.info("%s merged %s into %s"%(session["username"], data["id_from"], data["id"]))
     return web.Response(text="OK")
 
-# if fetched == []:
-#             if int(request.query["up"]):
-#                 c.execute("INSERT INTO votes VALUES (:mid, :uid, :target, 0, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
-#             else:
-#                 c.execute("INSERT INTO votes VALUES (:mid, :uid, 0, :target, 0, 0)", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
-#         else:
-#             if int(request.query["up"]):
-#                 c.execute("UPDATE votes SET up = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
-#             else:
-#                 c.execute("UPDATE votes SET down = :target WHERE mid = :mid AND uid = :uid", {"target": int(request.query["target"]), "mid": request.query["id"], "uid": session["id"]})
-
 @routes.get("/robots.txt")
 async def robots(request):
     return web.Response(text="""
